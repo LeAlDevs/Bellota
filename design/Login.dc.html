@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #7B4A17; text-decoration: none; } a:hover { color: #5F3811; }
+    .ico { flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .serif { font-weight: 600; letter-spacing: -0.03em; }
+  </style>
+</helmet>
+
+<div style="width: 1360px; height: 900px; display: flex; background: #FAF6F0; color: #1F1610; overflow: hidden;">
+
+  <!-- Panel de marca -->
+  <div style="width: 596px; flex: none; background: #2A1B0F; color: #E7DBCB; display: flex; flex-direction: column; padding: 52px 56px; position: relative; overflow: hidden;">
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="./bellota.webp" alt="Bellota" style="width: 34px; height: 34px; object-fit: contain;">
+      <div style="font-size: 19px; font-weight: 600; color: #FBF6EF; letter-spacing: -0.01em;">Bellota</div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; gap: 24px; max-width: 430px;">
+      <div class="serif" style="font-size: 47px; line-height: 1.12; letter-spacing: -0.02em; color: #FBF6EF;">El mostrador, el stock y la plata de Ibérico en un solo lugar.</div>
+      <div style="font-size: 15.5px; line-height: 1.65; color: #B7A48C;">Ramos y Mosconi, con el mismo precio, el mismo PLU en las cuatro balanzas y la caja cerrada todas las noches.</div>
+    </div>
+
+    <div style="display: flex; gap: 34px; padding-top: 26px; border-top: 1px solid #3D2916;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="serif" style="font-size: 27px; color: #F0DFC7;">2</div>
+        <div style="font-size: 12px; color: #8C7862;">locales</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="serif" style="font-size: 27px; color: #F0DFC7;">4</div>
+        <div style="font-size: 12px; color: #8C7862;">balanzas sincronizadas</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="serif" style="font-size: 27px; color: #F0DFC7;">1</div>
+        <div style="font-size: 12px; color: #8C7862;">lugar donde se carga el precio</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Formulario -->
+  <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 40px;">
+    <div style="width: 396px; display: flex; flex-direction: column; gap: 26px;">
+
+      <div style="display: flex; flex-direction: column; gap: 7px;">
+        <div style="font-size: 26px; font-weight: 600; letter-spacing: -0.02em;">Entrar</div>
+        <div style="font-size: 14px; color: #7A6B5D;">Usá el mail que te dio el encargado.</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 15px;">
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="font-size: 12.5px; font-weight: 500; color: #5C4E42;">Correo</div>
+          <div style="display: flex; align-items: center; gap: 11px; background: #FFFFFF; border: 1px solid #E0D4C4; border-radius: 10px; padding: 0 14px; height: 48px;">
+            <svg class="ico" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #A2937F;"><rect x="2.8" y="5" width="18.4" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 6 8.5-6"/></svg>
+            <div style="font-size: 14.5px; color: #1F1610;">ibericoramos@distribuidoraiberico.com.ar</div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 7px;">
+          <div style="display: flex; align-items: center;">
+            <div style="font-size: 12.5px; font-weight: 500; color: #5C4E42;">Contraseña</div>
+            <div style="flex-grow: 1;"></div>
+            <div style="font-size: 12.5px; color: #7B4A17; font-weight: 500;">La olvidé</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 11px; background: #FFFFFF; border: 2px solid #7B4A17; border-radius: 10px; padding: 0 14px; height: 48px;">
+            <svg class="ico" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #7B4A17;"><rect x="4" y="10.5" width="16" height="9.5" rx="2.5"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/></svg>
+            <div style="font-size: 17px; letter-spacing: 0.22em; color: #1F1610;">••••••••</div>
+            <div style="flex-grow: 1;"></div>
+            <svg class="ico" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #A2937F;"><path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.8"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 50px; border-radius: 11px; background: #7B4A17; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 15.5px; font-weight: 600;">Entrar</div>
+
+      <div style="display: flex; align-items: center; gap: 10px; background: #F5EADC; border: 1px solid #E4D2BB; border-radius: 10px; padding: 12px 14px;">
+        <svg class="ico" viewBox="0 0 24 24" style="width: 17px; height: 17px; color: #9A5B12;"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.2"/><path d="M12 7.8v.1"/></svg>
+        <div style="font-size: 12.5px; color: #6B4310; line-height: 1.45;">Cada usuario opera el punto de venta de su propio local. Los dos se ven desde cualquier cuenta.</div>
+      </div>
+
+      <div style="font-size: 12px; color: #A2937F; text-align: center;">Distribuidora Ibérico · Bellota v0.1</div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

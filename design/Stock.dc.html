@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #7B4A17; text-decoration: none; } a:hover { color: #5F3811; }
+    .ico { width: 19px; height: 19px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .num { font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .tn { font-variant-numeric: tabular-nums; }
+  </style>
+</helmet>
+
+<div style="width: 1360px; height: 900px; display: flex; background: #F4F1EC; color: #1F1610; overflow: hidden;">
+
+  <!-- Sidebar claro con secciones -->
+  <div style="width: 238px; flex: none; background: #FFFFFF; border-right: 1px solid #E7E0D6; display: flex; flex-direction: column;">
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #F0EBE3;">
+      <img src="./bellota.webp" alt="Bellota" style="width: 28px; height: 28px; object-fit: contain;">
+      <div style="font-size: 17px; font-weight: 600; letter-spacing: -0.015em;">Bellota</div>
+      <div style="flex-grow: 1;"></div>
+      <svg class="ico" viewBox="0 0 24 24" style="width: 17px; height: 17px; color: #A2937F;"><path d="M14.5 6 9 12l5.5 6"/></svg>
+    </div>
+
+    <div style="padding: 14px 12px; display: flex; flex-direction: column; gap: 2px;">
+
+      <div style="font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase; color: #A2937F; padding: 4px 10px 7px 10px;">Operación</div>
+
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/></svg>
+        <span>Inicio</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><circle cx="9.5" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3.5h2.8l2.4 11.6a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L21 7.5H6"/></svg>
+        <span>Punto de venta</span>
+        <div style="flex-grow: 1;"></div>
+        <div style="font-size: 10.5px; font-weight: 600; color: #2F6B3F; background: #E7F1E9; padding: 2px 7px; border-radius: 5px;">Abierto</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><path d="M6.5 17.5v-6"/><path d="M12 17.5V6"/><path d="M17.5 17.5v-9"/></svg>
+        <span>Panel de ventas</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; background: #F5EADC; color: #5F3811; font-size: 13.5px; font-weight: 600;">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5"/><path d="M12 12v9"/></svg>
+        <span>Stock</span>
+        <div style="flex-grow: 1;"></div>
+        <svg class="ico" viewBox="0 0 24 24" style="width: 15px; height: 15px; color: #B08A5C;"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1px; padding: 3px 0 3px 34px;">
+        <div style="padding: 6px 10px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: #5F3811; background: #FBF3E9;">Existencias</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259;">Movimientos</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259;">Ajustes y merma</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259;">Transferencias</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259;">Compras</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259;">Producción</div>
+        <div style="padding: 6px 10px; font-size: 12.5px; color: #6E6259; display: flex; align-items: center; gap: 7px;">
+          <span>Vencimientos</span>
+          <span style="font-size: 10.5px; font-weight: 600; color: #A93226; background: #FBEAE7; padding: 1.5px 6px; border-radius: 5px;">3</span>
+        </div>
+      </div>
+
+      <div style="font-size: 10px; letter-spacing: 0.11em; text-transform: uppercase; color: #A2937F; padding: 12px 10px 7px 10px;">Administración</div>
+
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10.5h18"/><circle cx="16.6" cy="15" r="1.1"/></svg>
+        <span>Pagos y gastos</span>
+        <div style="flex-grow: 1;"></div>
+        <svg class="ico" viewBox="0 0 24 24" style="width: 15px; height: 15px; color: #B8A995;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M20.4 12.6 12.7 20.3a1.9 1.9 0 0 1-2.7 0l-6.2-6.2a1.9 1.9 0 0 1-.55-1.5l.5-5.9a1.9 1.9 0 0 1 1.75-1.75l5.9-.5a1.9 1.9 0 0 1 1.5.55l6.2 6.2a1.9 1.9 0 0 1 0 2.7z"/><circle cx="8.6" cy="8.6" r="1.35"/></svg>
+        <span>Productos</span>
+        <div style="flex-grow: 1;"></div>
+        <svg class="ico" viewBox="0 0 24 24" style="width: 15px; height: 15px; color: #B8A995;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: #4B4038; font-size: 13.5px;">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3.5 7.5h9"/><path d="M17 7.5h3.5"/><path d="M3.5 16.5h4"/><path d="M12 16.5h8.5"/><circle cx="14.8" cy="7.5" r="2.2"/><circle cx="9.7" cy="16.5" r="2.2"/></svg>
+        <span>Configuración</span>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <div style="margin: 12px; padding: 13px 14px; background: #FBF6EE; border: 1px solid #EDE2D2; border-radius: 11px; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: center; gap: 7px;">
+        <div style="width: 6px; height: 6px; border-radius: 50%; background: #9A5B12;"></div>
+        <div style="font-size: 12px; font-weight: 600; color: #6B4310;">Caja de Mosconi</div>
+      </div>
+      <div style="font-size: 11.5px; color: #8A7A68; line-height: 1.45;">El turno del jueves 20 quedó sin cerrar.</div>
+      <div class="num" style="font-size: 18px; color: #6B4310;">$412.600</div>
+    </div>
+  </div>
+
+  <!-- Columna derecha -->
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <!-- Barra superior oscura -->
+    <div style="height: 56px; flex: none; background: #221609; display: flex; align-items: center; gap: 16px; padding: 0 22px; color: #C8B49B;">
+      <div style="display: flex; align-items: center; gap: 10px; background: #33230F; border-radius: 8px; padding: 8px 13px; width: 300px;">
+        <svg class="ico" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.3 4.3"/></svg>
+        <span style="font-size: 13px; color: #8C7862;">Buscar producto, venta o proveedor</span>
+      </div>
+
+      <div style="display: flex; gap: 6px; margin-left: 6px;">
+        <div style="padding: 6px 14px; border-radius: 7px; background: #C99263; color: #221609; font-size: 12.5px; font-weight: 600;">Los dos</div>
+        <div style="padding: 6px 14px; border-radius: 7px; font-size: 12.5px;">Ramos</div>
+        <div style="padding: 6px 14px; border-radius: 7px; font-size: 12.5px;">Mosconi</div>
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="position: relative; display: flex;">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9z"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg>
+          <div class="tn" style="position: absolute; top: -5px; right: -7px; min-width: 16px; height: 16px; border-radius: 8px; background: #C0392B; color: #FFFFFF; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px;">7</div>
+        </div>
+        <div style="width: 1px; height: 22px; background: #3D2916;"></div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #7B4A17; color: #FBF6EF; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">JA</div>
+          <div style="display: flex; flex-direction: column; gap: 1px;">
+            <div style="font-size: 12.5px; font-weight: 600; color: #F5EFE7;">Javier Ardita</div>
+            <div style="font-size: 11px; color: #8C7862;">Administrador · Ramos</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenido -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 14px; padding: 16px 20px; min-height: 0;">
+
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="font-size: 19px; font-weight: 600; letter-spacing: -0.02em;">Stock · Existencias</div>
+          <div style="font-size: 12.5px; color: #7A6B5D;">142 productos activos en los dos locales</div>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="padding: 9px 15px; border-radius: 9px; border: 1px solid #E0D4C4; background: #FFFFFF; font-size: 13px; display: flex; align-items: center; gap: 7px;">
+          <svg class="ico" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #7B4A17;"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          <span>Ajuste / merma</span>
+        </div>
+        <div style="padding: 9px 15px; border-radius: 9px; border: 1px solid #E0D4C4; background: #FFFFFF; font-size: 13px;">Transferir</div>
+        <div style="padding: 9px 16px; border-radius: 9px; background: #7B4A17; color: #FFFFFF; font-size: 13px; font-weight: 500;">Recibir compra</div>
+      </div>
+
+      <!-- Resumen -->
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px;">
+        <div style="background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 13px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px;">
+          <div style="font-size: 11.5px; color: #7A6B5D;">Stock valorizado</div>
+          <div class="num" style="font-size: 26px; line-height: 1;">$18.472.900</div>
+          <div style="font-size: 11.5px; color: #A2937F;">a costo promedio ponderado</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 13px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px;">
+          <div style="font-size: 11.5px; color: #7A6B5D;">Kilos en góndola</div>
+          <div class="num" style="font-size: 26px; line-height: 1;">742,6 kg</div>
+          <div style="font-size: 11.5px; color: #A2937F;">Ramos 418,2 · Mosconi 324,4</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 13px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px;">
+          <div style="font-size: 11.5px; color: #7A6B5D;">Bajo mínimo</div>
+          <div class="num" style="font-size: 26px; line-height: 1; color: #A93226;">7 productos</div>
+          <div style="font-size: 11.5px; color: #A2937F;">4 en Ramos · 3 en Mosconi</div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 13px; padding: 14px 16px; display: flex; flex-direction: column; gap: 5px;">
+          <div style="font-size: 11.5px; color: #7A6B5D;">Merma del mes</div>
+          <div class="num" style="font-size: 26px; line-height: 1;">$742.300</div>
+          <div style="font-size: 11.5px; color: #A2937F;">4,0% del costo vendido</div>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 9px; padding: 9px 14px; max-width: 380px;">
+          <svg class="ico" viewBox="0 0 24 24" style="width: 17px; height: 17px; color: #A2937F;"><circle cx="11" cy="11" r="7"/><path d="m16.2 16.2 4.3 4.3"/></svg>
+          <div style="font-size: 13.5px; color: #A2937F;">Buscar por nombre o PLU</div>
+        </div>
+        <div style="padding: 8px 14px; border-radius: 8px; background: #FFFFFF; border: 1px solid #E7E0D6; font-size: 13px; color: #5C4E42;">Todas las categorías</div>
+        <div style="padding: 8px 14px; border-radius: 8px; background: #F5EADC; border: 1px solid #E0CDB4; font-size: 13px; color: #5F3811; font-weight: 500;">Solo bajo mínimo</div>
+        <div style="flex-grow: 1;"></div>
+        <div style="font-size: 12.5px; color: #7A6B5D;">Ordenado por valorizado</div>
+      </div>
+
+      <!-- Tabla -->
+      <div style="background: #FFFFFF; border: 1px solid #E7E0D6; border-radius: 13px; display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+
+        <div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 10px 16px; background: #FBF9F5; border-bottom: 1px solid #E7E0D6; font-size: 10.5px; letter-spacing: 0.055em; text-transform: uppercase; color: #A2937F;">
+          <div>PLU</div>
+          <div>Producto</div>
+          <div>Tipo</div>
+          <div style="text-align: right;">Ramos</div>
+          <div style="text-align: right;">Mosconi</div>
+          <div style="text-align: right;">Total</div>
+          <div style="text-align: right;">Costo</div>
+          <div style="text-align: right;">Precio</div>
+          <div style="text-align: right;">Valorizado</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center; background: #FDF3F1;">
+          <div style="color: #A2937F;">2041</div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 500;">Queso pategrás</span><span style="font-size: 10.5px; font-weight: 600; color: #A93226; background: #FBEAE7; padding: 2px 6px; border-radius: 4px;">Bajo mínimo</span></div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right; color: #A93226; font-weight: 600;">1,200</div>
+          <div style="text-align: right;">6,400</div>
+          <div style="text-align: right; font-weight: 500;">7,600</div>
+          <div style="text-align: right; color: #7A6B5D;">$19.880</div>
+          <div style="text-align: right;">$27.980</div>
+          <div style="text-align: right;">$151.088</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center; background: #FDF3F1;">
+          <div style="color: #A2937F;">1120</div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 500;">Mortadela con pistacho</span><span style="font-size: 10.5px; font-weight: 600; color: #A93226; background: #FBEAE7; padding: 2px 6px; border-radius: 4px;">Bajo mínimo</span></div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">5,900</div>
+          <div style="text-align: right; color: #A93226; font-weight: 600;">0,800</div>
+          <div style="text-align: right; font-weight: 500;">6,700</div>
+          <div style="text-align: right; color: #7A6B5D;">$11.310</div>
+          <div style="text-align: right;">$15.280</div>
+          <div style="text-align: right;">$75.777</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">1041</div>
+          <div style="font-weight: 500;">Jamón crudo estacionado</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">18,400</div>
+          <div style="text-align: right;">12,100</div>
+          <div style="text-align: right; font-weight: 500;">30,500</div>
+          <div style="text-align: right; color: #7A6B5D;">$28.314</div>
+          <div style="text-align: right;">$42.900</div>
+          <div style="text-align: right;">$863.577</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">2015</div>
+          <div style="font-weight: 500;">Queso sardo</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">24,700</div>
+          <div style="text-align: right;">21,300</div>
+          <div style="text-align: right; font-weight: 500;">46,000</div>
+          <div style="text-align: right; color: #7A6B5D;">$20.164</div>
+          <div style="text-align: right;">$28.400</div>
+          <div style="text-align: right;">$927.544</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">3302</div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 500;">Picada Ibérico 800 g</span><span style="font-size: 10.5px; font-weight: 600; color: #7B4A17; background: #F5EADC; padding: 2px 6px; border-radius: 4px;">Elaborado</span><span style="font-size: 10.5px; font-weight: 600; color: #9A5B12; background: #FBEEDC; padding: 2px 6px; border-radius: 4px;">Vence 24/08</span></div>
+          <div style="color: #7A6B5D;">unidad</div>
+          <div style="text-align: right;">14</div>
+          <div style="text-align: right;">9</div>
+          <div style="text-align: right; font-weight: 500;">23</div>
+          <div style="text-align: right; color: #7A6B5D;">$27.730</div>
+          <div style="text-align: right;">$47.000</div>
+          <div style="text-align: right;">$637.790</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">1108</div>
+          <div style="font-weight: 500;">Salame Milán</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">16,200</div>
+          <div style="text-align: right;">13,900</div>
+          <div style="text-align: right; font-weight: 500;">30,100</div>
+          <div style="text-align: right; color: #7A6B5D;">$14.454</div>
+          <div style="text-align: right;">$19.800</div>
+          <div style="text-align: right;">$435.065</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">2003</div>
+          <div style="font-weight: 500;">Muzzarella en barra</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">32,500</div>
+          <div style="text-align: right;">28,700</div>
+          <div style="text-align: right; font-weight: 500;">61,200</div>
+          <div style="text-align: right; color: #7A6B5D;">$11.644</div>
+          <div style="text-align: right;">$14.200</div>
+          <div style="text-align: right;">$712.613</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">1077</div>
+          <div style="font-weight: 500;">Bondiola ahumada</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">9,800</div>
+          <div style="text-align: right;">7,200</div>
+          <div style="text-align: right; font-weight: 500;">17,000</div>
+          <div style="text-align: right; color: #7A6B5D;">$21.105</div>
+          <div style="text-align: right;">$31.500</div>
+          <div style="text-align: right;">$358.785</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; border-bottom: 1px solid #F4EFE8; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">1052</div>
+          <div style="font-weight: 500;">Jamón cocido natural</div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">27,300</div>
+          <div style="text-align: right;">22,600</div>
+          <div style="text-align: right; font-weight: 500;">49,900</div>
+          <div style="text-align: right; color: #7A6B5D;">$9.240</div>
+          <div style="text-align: right;">$12.000</div>
+          <div style="text-align: right;">$461.076</div>
+        </div>
+
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 9px 16px; font-size: 13px; align-items: center;">
+          <div style="color: #A2937F;">1085</div>
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 500;">Panceta ahumada</span><span style="font-size: 10.5px; font-weight: 600; color: #9A5B12; background: #FBEEDC; padding: 2px 6px; border-radius: 4px;">Cerca del mínimo</span></div>
+          <div style="color: #7A6B5D;">kg</div>
+          <div style="text-align: right;">6,400</div>
+          <div style="text-align: right; color: #9A5B12; font-weight: 600;">3,100</div>
+          <div style="text-align: right; font-weight: 500;">9,500</div>
+          <div style="text-align: right; color: #7A6B5D;">$17.940</div>
+          <div style="text-align: right;">$26.000</div>
+          <div style="text-align: right;">$170.430</div>
+        </div>
+
+        <div style="flex-grow: 1;"></div>
+        <div class="tn" style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 62px 84px 84px 84px 96px 96px 110px; padding: 11px 16px; border-top: 1px solid #E7E0D6; background: #FBF9F5; font-size: 12.5px; font-weight: 600;">
+          <div></div>
+          <div>Total 142 productos</div>
+          <div></div>
+          <div style="text-align: right;">418,2</div>
+          <div style="text-align: right;">324,4</div>
+          <div style="text-align: right;">742,6</div>
+          <div></div>
+          <div></div>
+          <div style="text-align: right;">$18.472.900</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1360,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+/* ── Sistema visual "Tablero" (Dirección D, validada 22/08/2026) ──────────
+   Contenido claro y cálido + sidebar blanco con secciones + barra superior
+   espresso. El acento es lo único de marca: cambiando --color-accent se
+   repinta todo el sistema.
+
+   Regla que NO se rompe: el color codifica, no decora.
+     marrón = venta · verde = margen y bienestar · rojo = merma y faltante
+     ámbar  = atención (vencimientos cercanos, caja sin cerrar)              */
+@theme {
+  --color-canvas: #f4f1ec;
+  --color-card: #ffffff;
+  --color-ink: #1f1610;
+  --color-muted: #7a6b5d;
+  --color-faint: #a2937f;
+  --color-line: #e7e0d6;
+  --color-line-strong: #dcd2c4;
+  --color-subtle: #fbf9f5;
+
+  --color-accent: #7b4a17;
+  --color-accent-hover: #5f3811;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #f5eadc;
+  --color-tostado: #c99263;
+
+  /* Sidebar claro */
+  --color-sidebar: #ffffff;
+  --color-sidebar-fg: #4b4038;
+  --color-sidebar-muted: #a2937f;
+  --color-sidebar-active: #f5eadc;
+  --color-sidebar-active-fg: #5f3811;
+
+  /* Barra superior espresso */
+  --color-topbar: #221609;
+  --color-topbar-fg: #c8b49b;
+  --color-topbar-strong: #f5efe7;
+  --color-topbar-muted: #8c7862;
+  --color-topbar-field: #33230f;
+  --color-topbar-line: #3d2916;
+
+  --color-ok: #2f6b3f;
+  --color-ok-bg: #e7f1e9;
+  --color-warn: #9a5b12;
+  --color-warn-bg: #fbeedc;
+  --color-danger: #a93226;
+  --color-danger-bg: #fbeae7;
+  --color-danger-strong: #c0392b;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Números de plata, kilos y cantidades: peso 600, tracking cerrado y cifras
+   tabulares, para que las columnas alineen sin importar los dígitos. */
+@utility num {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Solo alineación tabular, sin tocar el peso (filas de tabla). */
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}

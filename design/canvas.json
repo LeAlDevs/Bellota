@@ -1,0 +1,132 @@
+{
+  "pages": [
+    {
+      "id": "direcciones",
+      "name": "Direcciones"
+    },
+    {
+      "id": "pantallas",
+      "name": "Pantallas · Dirección D"
+    }
+  ],
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "page": "direcciones",
+      "title": "A · Mostrador",
+      "x": 0,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "DireccionB.dc.html",
+      "page": "direcciones",
+      "title": "B · Operativo",
+      "x": 1460,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "DireccionC.dc.html",
+      "page": "direcciones",
+      "title": "C · Pizarra",
+      "x": 2920,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "DireccionD.dc.html",
+      "page": "direcciones",
+      "title": "D · Tablero — ELEGIDA",
+      "x": 4380,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "POS.dc.html",
+      "page": "pantallas",
+      "title": "Punto de venta · mostrador",
+      "x": 0,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "POSCelular.dc.html",
+      "page": "pantallas",
+      "title": "Punto de venta · celular 390px",
+      "x": 1460,
+      "y": 0,
+      "w": 390,
+      "h": 844
+    },
+    {
+      "file": "Login.dc.html",
+      "page": "pantallas",
+      "title": "Login",
+      "x": 1950,
+      "y": 0,
+      "w": 1360,
+      "h": 900
+    },
+    {
+      "file": "Stock.dc.html",
+      "page": "pantallas",
+      "title": "Stock · Existencias",
+      "x": 0,
+      "y": 1000,
+      "w": 1360,
+      "h": 900
+    }
+  ],
+  "annotations": [
+    {
+      "id": "nota-a",
+      "page": "direcciones",
+      "x": 0,
+      "y": -230,
+      "w": 560,
+      "text": "A · MOSTRADOR — descartada\n\nCrema y espresso, acento bellota, números en serifa. Toma la identidad del logo sin volverse decorativa.\n\nA favor: se ve como un negocio de fiambres finos, no como una planilla. El sidebar oscuro ancla la marca.\nEn contra: entran menos filas por pantalla que en B. Se compensa con la densidad de tablas de B adentro de cada módulo."
+    },
+    {
+      "id": "nota-b",
+      "page": "direcciones",
+      "x": 1460,
+      "y": -230,
+      "w": 560,
+      "text": "B · OPERATIVO — densidad primero\n\nSidebar claro, esquinas rectas, IBM Plex Mono en todos los números, tipografía chica. La tabla es la protagonista: 10 filas y 8 columnas sin scroll, con totales al pie.\n\nA favor: para quien mira números todo el día, es la más rápida de leer.\nEn contra: no tiene identidad — podría ser el ERP de cualquier rubro."
+    },
+    {
+      "id": "nota-c",
+      "page": "direcciones",
+      "x": 2920,
+      "y": -230,
+      "w": 560,
+      "text": "C · PIZARRA — oscura, para mirar de lejos\n\nRail de iconos, fondo oscuro, la venta del día enorme, ventas por hora a la vista.\n\nA favor: se lee de un vistazo desde el mostrador o desde el celular a la noche.\nEn contra: el local es luminoso y el cajero está 10 horas frente a la pantalla; el fondo oscuro con luz de día cansa más. La dejaría como modo nocturno, no como base."
+    },
+    {
+      "id": "nota-d",
+      "page": "direcciones",
+      "x": 4380,
+      "y": -230,
+      "w": 560,
+      "text": "D · TABLERO — ELEGIDA (22/08)\n\nEl esqueleto de la referencia que pasaste, con nuestra paleta y la tipografía de Spera: Geist para todo, con los números en peso 600, tracking cerrado y cifras tabulares (las columnas alinean solas).\n\nLo que le tomé prestado: la franja de cinco indicadores con sparkline, los gráficos arriba de las tablas, el sidebar claro con secciones rotuladas y la barra superior oscura con buscador y selector de local.\n\nLo que cambié: el color significa algo (marrón = venta, verde = margen, rojo = merma), no hay widgets de relleno, y el sidebar muestra siete módulos, no quince."
+    },
+    {
+      "id": "nota-pantallas",
+      "page": "pantallas",
+      "x": 0,
+      "y": -230,
+      "w": 620,
+      "text": "Las pantallas clave en la Dirección D, con Geist. Stock ya tiene el shell definitivo: sidebar claro con el árbol de sub-pestañas desplegado y barra superior oscura.\n\nEl POS y el Login no llevan sidebar a propósito — el mostrador necesita la pantalla entera y el login es anterior a todo — así que solo cambió la tipografía.\n\nEn el POS mirá tres cosas: el renglón verde \"Etiqueta\" (peso leído del código de barras de la balanza) contra \"Peso a mano\", el bloque de pesada manual abajo a la izquierda (funciona desde el día uno, sin esperar a configurar las balanzas), y el toggle Fiscal / No fiscal arriba del ticket."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "pantallas"
+  }
+}
