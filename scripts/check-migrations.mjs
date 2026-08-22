@@ -217,5 +217,105 @@ await paso("un PLU dado de baja NO se reutiliza", async () => {
   return `borré el ${antes.rows[0].m}, el nuevo sacó ${r.rows[0].plu}`;
 });
 
+// ── Importación de catálogo ───────────────────────────────────────────
+let mosconi;
+await paso("preparo el segundo local", async () => {
+  const r = await db.query("select id from public.stores where name = 'Mosconi'");
+  mosconi = r.rows[0].id;
+});
+
+const planilla = (stockRamos, stockMosconi) => [
+  {
+    nombre: "Mortadela con pistacho",
+    tipo: "kg",
+    precio: 15280,
+    costo: 11310,
+    categoria: "Fiambres",
+    minimo: 4,
+    vence: false,
+    stock: { [ramos]: String(stockRamos), [mosconi]: String(stockMosconi) },
+  },
+  {
+    nombre: "Picada Ibérico 800 g",
+    tipo: "unidad",
+    precio: 47000,
+    costo: 27730,
+    categoria: "Picadas y tablas",
+    vence: true,
+    vida_util: 4,
+    stock: { [ramos]: "14" },
+  },
+];
+
+await paso("la importación crea productos y categorías nuevas", async () => {
+  const r = await db.query("select public.import_products($1::jsonb) as res", [
+    JSON.stringify(planilla(5.9, 3.2)),
+  ]);
+  const res = r.rows[0].res;
+  if (res.creados !== 2) throw new Error("esperaba 2 creados, hubo " + res.creados);
+  if (res.ajustes_stock !== 3) throw new Error("esperaba 3 ajustes, hubo " + res.ajustes_stock);
+  return `${res.creados} creados, ${res.ajustes_stock} ajustes de stock`;
+});
+
+await paso("reimportar la MISMA planilla no duplica ni suma stock", async () => {
+  const antesProd = await db.query("select count(*)::int as n from public.products");
+  const r = await db.query("select public.import_products($1::jsonb) as res", [
+    JSON.stringify(planilla(5.9, 3.2)),
+  ]);
+  const res = r.rows[0].res;
+  const despuesProd = await db.query("select count(*)::int as n from public.products");
+
+  if (despuesProd.rows[0].n !== antesProd.rows[0].n) throw new Error("duplicó productos");
+  if (res.creados !== 0) throw new Error("creó " + res.creados + " y no debía");
+  if (res.ajustes_stock !== 0) throw new Error("tocó el stock " + res.ajustes_stock + " veces");
+
+  const s = await db.query(
+    "select qty from public.stock s join public.products p on p.id = s.product_id where p.name = 'Mortadela con pistacho' and s.store_id = $1",
+    [ramos]
+  );
+  if (Number(s.rows[0].qty) !== 5.9) throw new Error("el stock quedó en " + s.rows[0].qty);
+  return "0 creados, 0 ajustes, stock sigue en 5,900";
+});
+
+await paso("la planilla dice CUÁNTO HAY, no cuánto sumar", async () => {
+  await db.query("select public.import_products($1::jsonb)", [
+    JSON.stringify(planilla(2.4, 3.2)),
+  ]);
+  const s = await db.query(
+    "select qty from public.stock s join public.products p on p.id = s.product_id where p.name = 'Mortadela con pistacho' and s.store_id = $1",
+    [ramos]
+  );
+  if (Number(s.rows[0].qty) !== 2.4) throw new Error("quedó en " + s.rows[0].qty);
+  const m = await db.query(
+    "select delta, reason from public.stock_movements order by created_at desc limit 1"
+  );
+  if (m.rows[0].reason !== "ajuste") throw new Error("el motivo fue " + m.rows[0].reason);
+  return `bajó a 2,400 con un movimiento de ${m.rows[0].delta} (ajuste)`;
+});
+
+await paso("sin PLU en la planilla, Bellota se lo asigna", async () => {
+  const r = await db.query(
+    "select plu from public.products where name = 'Mortadela con pistacho'"
+  );
+  if (!r.rows[0].plu) throw new Error("quedó sin PLU");
+  return `PLU ${r.rows[0].plu}`;
+});
+
+await paso("la planilla NO pisa un costo que ya viene de una compra", async () => {
+  const p = await db.query("select id from public.products where name = 'Picada Ibérico 800 g'");
+  const pid = p.rows[0].id;
+  await db.query("update public.products set cost = 31000 where id = $1", [pid]);
+  await db.query(
+    "select public.adjust_stock($1, $2, 1, 'compra', null, null, 31000)",
+    [ramos, pid]
+  );
+  await db.query("select public.import_products($1::jsonb)", [
+    JSON.stringify(planilla(2.4, 3.2)),
+  ]);
+  const r = await db.query("select cost from public.products where id = $1", [pid]);
+  if (Number(r.rows[0].cost) !== 31000) throw new Error("lo pisó, quedó en " + r.rows[0].cost);
+  return "sigue en 31000, no lo pisó con 27730";
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);
