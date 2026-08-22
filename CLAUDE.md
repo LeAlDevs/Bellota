@@ -115,7 +115,7 @@ Los bocetos fuente están en `design/*.dc.html`; los tokens, en `app/globals.css
 3. **`npm run build` antes de cada commit** — atrapa errores de tipos.
 4. Al terminar una feature, decir **explícitamente** qué migración hay que correr.
 
-## Errores ya cometidos en los ERP anteriores (no repetirlos)
+## Trampas conocidas de este stack (no volver a caer)
 
 - `formData.get("campo")` devuelve **`null`** si el campo no está en el form. Un
   `z.preprocess` que solo convierte `""` a `undefined` **falla con `null`**.

@@ -98,8 +98,8 @@ Crece por fase. Al final tiene:
 ### 4.1 Base
 
 `organizations` · `profiles` (+ `store_id`, `role_id`) · `roles` · `role_permissions`
-Multi-tenant con RLS por organización desde el día uno, igual que Lamina/Spera.
-Una sola empresa, pero la estructura queda.
+Multi-tenant con RLS por organización desde el día uno. Ibérico es una sola
+empresa, pero la estructura queda por si mañana hay una segunda razón social.
 
 `stores` — id, nombre, `email`, `has_pos`, activo. Un depósito central futuro entra
 acá con `has_pos = false`.
@@ -355,7 +355,7 @@ y cualquier cambio de precio entre el pesado y el cobro descuadra el stock.
 
 ---
 
-## 6. Arquitectura (heredada, ya probada en producción)
+## 6. Arquitectura
 
 1. **Multitenant desde el día uno.** Toda tabla lleva `organization_id` con RLS
    `using (organization_id = current_org_id())`. `current_org_id()` es
