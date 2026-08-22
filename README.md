@@ -25,14 +25,22 @@ Las migraciones están en `supabase/migrations/`, numeradas y **append-only**. S
 corren **a mano en el SQL Editor de Supabase, en orden**. Nunca se edita una ya
 corrida: si algo cambia, va una migración nueva.
 
-Para arrancar de cero:
+Para arrancar de cero, **en este orden**:
 
 1. Correr `0001_base.sql`. Crea la organización, los dos locales, los roles
    (Administrador, Encargado, Cajero) con sus permisos, y el trigger de alta.
-2. Crear el primer usuario en **Supabase → Authentication → Users → Add user**,
+2. Correr `0002_reparar_alta_usuario.sql`.
+3. Crear el primer usuario en **Supabase → Authentication → Users → Add user**,
    con contraseña y "Auto Confirm User" activado.
-3. Ese primer usuario queda como **Administrador** automáticamente. Los que
+4. Ese primer usuario queda como **Administrador** automáticamente. Los que
    entren después quedan sin rol hasta que un administrador se los asigne.
+
+> **El orden importa.** El perfil se crea con un trigger sobre `auth.users`, que
+> solo actúa hacia adelante: un usuario dado de alta ANTES de correr las
+> migraciones queda sin perfil y sin rol, y no hay forma de arreglarlo desde la
+> UI (para entrar a Configuración ya hace falta tener rol). `0002` existe
+> justamente para reparar eso: rellena los perfiles que falten y garantiza que
+> haya un Administrador. Es idempotente, se puede volver a correr.
 
 ## Módulos
 
