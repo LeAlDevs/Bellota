@@ -389,5 +389,151 @@ await paso("la planilla NO pisa un costo que ya viene de una compra", async () =
   return "sigue en 31000, no lo pisó con 27730";
 });
 
+// ── Stock: merma, conteo y transferencias ─────────────────────────────
+let mermable;
+await paso("preparo un producto con stock en los dos locales", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Queso pategrás', 'kg', 27980, null, 'simple', 19880, 3, false, null, null, null, null, 2041)"
+  );
+  mermable = r.rows[0].id;
+  await db.query("select public.adjust_stock($1, $2, 10, 'alta_inicial')", [ramos, mermable]);
+  await db.query("select public.adjust_stock($1, $2, 6, 'alta_inicial')", [mosconi, mermable]);
+  return "10 kg en Ramos, 6 en Mosconi";
+});
+
+await paso("adjust_stock guarda el costo del momento sin que se lo pidan", async () => {
+  const r = await db.query(
+    "select unit_cost from public.stock_movements where product_id = $1 order by created_at desc limit 1",
+    [mermable]
+  );
+  if (Number(r.rows[0].unit_cost) !== 19880) {
+    throw new Error("guardó " + r.rows[0].unit_cost);
+  }
+  return "$19.880, el costo del producto";
+});
+
+await paso("una merma SIN motivo se rechaza", async () => {
+  try {
+    await db.query("select public.adjust_stock($1, $2, -1, 'merma')", [ramos, mermable]);
+  } catch (e) {
+    if (!/motivo/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada, bien";
+  }
+  throw new Error("dejó registrar una merma sin motivo");
+});
+
+await paso("la merma descuenta y deja el motivo y la plata perdida", async () => {
+  await db.query(
+    "select public.register_stock_adjustment($1, $2, 'merma', 1.4, 'vencido', 'Se pasó de fecha')",
+    [ramos, mermable]
+  );
+  const m = await db.query(
+    "select delta, reason, motive, unit_cost from public.stock_movements where product_id = $1 order by created_at desc limit 1",
+    [mermable]
+  );
+  const mv = m.rows[0];
+  if (mv.reason !== "merma" || mv.motive !== "vencido") {
+    throw new Error(`quedó ${mv.reason}/${mv.motive}`);
+  }
+  const perdido = Math.abs(Number(mv.delta)) * Number(mv.unit_cost);
+  const q = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, mermable]);
+  if (Number(q.rows[0].qty) !== 8.6) throw new Error("el stock quedó en " + q.rows[0].qty);
+  return `8,600 kg, motivo vencido, $${perdido.toFixed(0)} perdidos`;
+});
+
+await paso("el conteo calcula la diferencia, no se la pide al usuario", async () => {
+  await db.query(
+    "select public.register_stock_adjustment($1, $2, 'conteo', 8.2, null, null)",
+    [ramos, mermable]
+  );
+  const m = await db.query(
+    "select delta, reason from public.stock_movements where product_id = $1 order by created_at desc limit 1",
+    [mermable]
+  );
+  if (m.rows[0].reason !== "ajuste") throw new Error("el motivo fue " + m.rows[0].reason);
+  if (Math.abs(Number(m.rows[0].delta) + 0.4) > 0.0005) {
+    throw new Error("el delta fue " + m.rows[0].delta);
+  }
+  return "conté 8,200 sobre 8,600 -> movimiento de -0,400";
+});
+
+await paso("un conteo que coincide NO ensucia el historial", async () => {
+  const antes = await db.query("select count(*)::int as n from public.stock_movements where product_id = $1", [mermable]);
+  await db.query(
+    "select public.register_stock_adjustment($1, $2, 'conteo', 8.2, null, null)",
+    [ramos, mermable]
+  );
+  const despues = await db.query("select count(*)::int as n from public.stock_movements where product_id = $1", [mermable]);
+  if (despues.rows[0].n !== antes.rows[0].n) throw new Error("registró un movimiento de cero");
+  return "sin movimiento nuevo";
+});
+
+await paso("la transferencia mueve de un local al otro en un solo acto", async () => {
+  const items = JSON.stringify([{ product_id: mermable, qty: 3 }]);
+  await db.query("select public.create_transfer($1, $2, $3::jsonb, 'Reposición')", [ramos, mosconi, items]);
+  const a = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, mermable]);
+  const b = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [mosconi, mermable]);
+  if (Number(a.rows[0].qty) !== 5.2) throw new Error("Ramos quedó en " + a.rows[0].qty);
+  if (Number(b.rows[0].qty) !== 9) throw new Error("Mosconi quedó en " + b.rows[0].qty);
+  return "Ramos 5,200 / Mosconi 9,000";
+});
+
+await paso("no se puede transferir mas de lo que hay", async () => {
+  const items = JSON.stringify([{ product_id: mermable, qty: 999 }]);
+  try {
+    await db.query("select public.create_transfer($1, $2, $3::jsonb, null)", [ramos, mosconi, items]);
+  } catch (e) {
+    if (!/No alcanza el stock/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada con el mensaje correcto";
+  }
+  throw new Error("dejó mandar mercadería que no existe");
+});
+
+await paso("una transferencia rechazada no deja rastro (es atomica)", async () => {
+  const antes = await db.query("select count(*)::int as n from public.transfers");
+  const items = JSON.stringify([
+    { product_id: mermable, qty: 1 },
+    { product_id: mermable, qty: 999 },
+  ]);
+  try {
+    await db.query("select public.create_transfer($1, $2, $3::jsonb, null)", [ramos, mosconi, items]);
+  } catch {
+    // esperado
+  }
+  const despues = await db.query("select count(*)::int as n from public.transfers");
+  if (despues.rows[0].n !== antes.rows[0].n) throw new Error("quedó una transferencia a medias");
+  const q = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, mermable]);
+  if (Number(q.rows[0].qty) !== 5.2) throw new Error("el stock se movió igual: " + q.rows[0].qty);
+  return "sin transferencia y sin mover stock";
+});
+
+await paso("los FK de transfers se llaman como espera la pantalla", async () => {
+  // transfers tiene DOS claves foráneas a stores (origen y destino), así que
+  // PostgREST no puede resolver el embed solo: la pantalla las nombra a mano
+  // como stores!transfers_from_store_id_fkey. Si el nombre no coincide, el
+  // listado tira 500. Por eso se chequea acá y no en el navegador.
+  const esperados = ["transfers_from_store_id_fkey", "transfers_to_store_id_fkey"];
+  const r = await db.query(`
+    select conname from pg_constraint
+     where conrelid = 'public.transfers'::regclass and contype = 'f'
+  `);
+  const nombres = r.rows.map((x) => x.conname);
+  const faltan = esperados.filter((e) => !nombres.includes(e));
+  if (faltan.length > 0) {
+    throw new Error(`faltan ${faltan.join(", ")}; hay ${nombres.join(", ")}`);
+  }
+  return esperados.join(" + ");
+});
+
+await paso("no se puede transferir de un local a si mismo", async () => {
+  const items = JSON.stringify([{ product_id: mermable, qty: 1 }]);
+  try {
+    await db.query("select public.create_transfer($1, $1, $2::jsonb, null)", [ramos, items]);
+  } catch {
+    return "rechazada, bien";
+  }
+  throw new Error("lo dejó pasar");
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);
