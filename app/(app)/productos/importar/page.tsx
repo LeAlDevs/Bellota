@@ -10,12 +10,13 @@ export default async function ImportarPage() {
   const [{ data: stores }, { data: productos }] = await Promise.all([
     sb.from("stores").select("id, name").eq("active", true).order("name"),
     // Para la vista previa: saber qué fila crea y qué fila actualiza.
-    sb.from("products").select("id, plu, name"),
+    sb.from("products").select("id, plu, barcode, name"),
   ]);
 
   const existentes: Existente[] = (productos ?? []).map((p) => ({
     id: p.id,
     plu: p.plu,
+    barcode: p.barcode,
     nombre: p.name,
   }));
 

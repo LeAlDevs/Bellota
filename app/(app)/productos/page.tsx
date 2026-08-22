@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type Row = {
   id: string;
   name: string;
-  plu: number;
+  plu: number | null;
   unit_type: "kg" | "unidad";
   kind: "simple" | "elaborado" | "combo";
   price: number;
@@ -189,7 +189,25 @@ export default async function ProductosPage({
                       !r.is_active && "opacity-55"
                     )}
                   >
-                    <div className="tnum text-faint">{r.plu}</div>
+                    {/* Un producto que se pesa sin PLU no se puede escanear:
+                        hay que buscarlo por nombre y tipear el peso. Se marca. */}
+                    <div
+                      className={cn(
+                        "tnum",
+                        r.plu != null
+                          ? "text-faint"
+                          : r.unit_type === "kg"
+                            ? "font-semibold text-warn"
+                            : "text-faint"
+                      )}
+                      title={
+                        r.plu == null && r.unit_type === "kg"
+                          ? "Se pesa pero no tiene PLU: el mostrador no puede leer su etiqueta"
+                          : undefined
+                      }
+                    >
+                      {r.plu ?? (r.unit_type === "kg" ? "falta" : "—")}
+                    </div>
 
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate font-medium">{r.name}</span>

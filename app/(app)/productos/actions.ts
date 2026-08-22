@@ -35,6 +35,14 @@ const schema = z.object({
   price: z.number({ message: "El precio tiene que ser un número." }).min(0, "El precio no puede ser negativo."),
   cost: z.number().min(0, "El costo no puede ser negativo.").optional(),
   category_id: z.uuid().optional(),
+  // El PLU sale de la balanza. Puede no existir: los envasados de fábrica se
+  // venden por su código de barras y no pasan nunca por la balanza.
+  plu: z
+    .number()
+    .int("El PLU es un número entero.")
+    .min(1, "El PLU tiene que ser mayor a cero.")
+    .max(99999, "El PLU no puede pasar de 5 dígitos: no entra en el código de barras.")
+    .optional(),
   min_stock: z.number().min(0, "El mínimo no puede ser negativo.").optional(),
   track_expiry: z.boolean().default(false),
   shelf_life_days: z.number().int().positive("Los días tienen que ser mayores a cero.").optional(),
@@ -51,6 +59,7 @@ function parse(formData: FormData) {
     price: num(formData.get("price")),
     cost: num(formData.get("cost")),
     category_id: str(formData.get("category_id")),
+    plu: num(formData.get("plu")),
     min_stock: num(formData.get("min_stock")),
     track_expiry: bool(formData.get("track_expiry")),
     shelf_life_days: num(formData.get("shelf_life_days")),
@@ -58,6 +67,26 @@ function parse(formData: FormData) {
     sku: str(formData.get("sku")),
     description: str(formData.get("description")),
   });
+}
+
+function errorLegible(error: { code?: string; message: string }): string {
+  if (error.code === "23505") {
+    return error.message.includes("plu")
+      ? "Ese PLU ya está usado por otro producto. Fijate en la balanza cuál corresponde."
+      : "Ese código de barras ya está cargado en otro producto.";
+  }
+  return error.message;
+}
+
+/** Propone un PLU libre para un producto nuevo que todavía no está en la balanza. */
+export async function sugerirPlu(): Promise<{ plu?: number; error?: string }> {
+  const denied = await requireCan("productos", true);
+  if (denied) return { error: denied.error };
+
+  const sb = await createClient();
+  const { data, error } = await sb.rpc("suggest_plu");
+  if (error) return { error: error.message };
+  return { plu: data as number };
 }
 
 export async function crearProducto(
@@ -76,28 +105,23 @@ export async function crearProducto(
   const sb = await createClient();
   // create_product devuelve la fila entera (tipo compuesto, no SETOF): PostgREST
   // ya responde un objeto, así que NO hay que pedir .single().
-  const { data, error } = await sb
-    .rpc("create_product", {
-      p_name: d.name,
-      p_unit_type: d.unit_type,
-      p_price: d.price,
-      p_category_id: d.category_id ?? null,
-      p_kind: d.kind,
-      p_cost: d.cost ?? 0,
-      p_min_stock: d.min_stock ?? 0,
-      p_track_expiry: d.track_expiry,
-      p_shelf_life_days: d.track_expiry ? (d.shelf_life_days ?? null) : null,
-      p_barcode: d.barcode ?? null,
-      p_sku: d.sku ?? null,
-      p_description: d.description ?? null,
-    });
+  const { data, error } = await sb.rpc("create_product", {
+    p_name: d.name,
+    p_unit_type: d.unit_type,
+    p_price: d.price,
+    p_category_id: d.category_id ?? null,
+    p_kind: d.kind,
+    p_cost: d.cost ?? 0,
+    p_min_stock: d.min_stock ?? 0,
+    p_track_expiry: d.track_expiry,
+    p_shelf_life_days: d.track_expiry ? (d.shelf_life_days ?? null) : null,
+    p_barcode: d.barcode ?? null,
+    p_sku: d.sku ?? null,
+    p_description: d.description ?? null,
+    p_plu: d.plu ?? null,
+  });
 
-  if (error) {
-    if (error.code === "23505") {
-      return { error: "Ya hay un producto con ese PLU o ese código de barras." };
-    }
-    return { error: error.message };
-  }
+  if (error) return { error: errorLegible(error) };
 
   const creado = (Array.isArray(data) ? data[0] : data) as { id: string } | null;
   if (!creado?.id) return { error: "El producto se creó pero no pude leerlo." };
@@ -136,16 +160,20 @@ export async function editarProducto(
     p_description: d.description ?? null,
     p_is_active: bool(formData.get("is_active")),
     p_price_reason: str(formData.get("price_reason")) ?? null,
+    p_plu: d.plu ?? null,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error: errorLegible(error) };
 
   revalidatePath("/productos");
   revalidatePath(`/productos/${id}`);
   return { ok: true };
 }
 
-/** Baja lógica. El PLU queda reservado de por vida: nunca se reutiliza. */
+/**
+ * Baja lógica. Va por su propia función para no pasar por update_product, que
+ * pisa todos los campos: un llamador distraído le borraría el PLU al producto.
+ */
 export async function alternarActivo(
   id: string,
   activo: boolean
@@ -154,31 +182,9 @@ export async function alternarActivo(
   if (denied) return denied;
 
   const sb = await createClient();
-  const { data: p, error: readError } = await sb
-    .from("products")
-    .select(
-      "name, unit_type, price, category_id, kind, min_stock, track_expiry, shelf_life_days, barcode, sku, description"
-    )
-    .eq("id", id)
-    .maybeSingle();
-
-  if (readError || !p) return { error: "No encontré ese producto." };
-
-  const { error } = await sb.rpc("update_product", {
+  const { error } = await sb.rpc("set_product_active", {
     p_id: id,
-    p_name: p.name,
-    p_unit_type: p.unit_type,
-    p_price: p.price,
-    p_category_id: p.category_id,
-    p_kind: p.kind,
-    p_min_stock: p.min_stock,
-    p_track_expiry: p.track_expiry,
-    p_shelf_life_days: p.shelf_life_days,
-    p_barcode: p.barcode,
-    p_sku: p.sku,
-    p_description: p.description,
-    p_is_active: activo,
-    p_price_reason: null,
+    p_active: activo,
   });
 
   if (error) return { error: error.message };

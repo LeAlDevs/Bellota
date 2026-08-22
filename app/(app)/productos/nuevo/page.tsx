@@ -20,7 +20,7 @@ export default async function NuevoProductoPage() {
     <>
       <PageHeader
         title="Nuevo producto"
-        subtitle="El PLU se asigna solo y no se reutiliza nunca."
+        subtitle="Si se pesa, copiá el PLU que ya tiene cargado la balanza."
       />
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         <ProductForm action={crearProducto} categories={categories ?? []} />

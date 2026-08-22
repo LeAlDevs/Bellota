@@ -59,7 +59,16 @@ export default async function ProductoPage({
 
   return (
     <>
-      <PageHeader title={producto.name} subtitle={`PLU ${producto.plu}`}>
+      <PageHeader
+        title={producto.name}
+        subtitle={
+          producto.plu != null
+            ? `PLU ${producto.plu}`
+            : producto.barcode
+              ? `Código de barras ${producto.barcode}`
+              : "Sin PLU ni código de barras"
+        }
+      >
         <div className="flex items-center gap-2.5">
           {!producto.is_active && <Badge>De baja</Badge>}
           <Link
@@ -76,9 +85,20 @@ export default async function ProductoPage({
         <div className="flex items-center gap-3 rounded-xl border border-ok/25 bg-ok-bg px-4 py-3">
           <CheckCircle2 className="size-[18px] shrink-0 text-ok" strokeWidth={1.8} />
           <p className="text-[13px] leading-relaxed text-ok">
-            Producto creado. Le tocó el <strong className="num">PLU {producto.plu}</strong> —
-            cargalo con ese mismo número en las cuatro balanzas, si no la etiqueta
-            va a escanear otra cosa.
+            {producto.plu != null ? (
+              <>
+                Producto creado con el{" "}
+                <strong className="num">PLU {producto.plu}</strong>. Chequeá que
+                sea el mismo número en las cuatro balanzas: si en alguna está en
+                otro producto, esa etiqueta va a escanear mal en el mostrador.
+              </>
+            ) : (
+              <>
+                Producto creado <strong>sin PLU</strong>. Se va a vender por
+                código de barras o buscándolo por nombre, no por etiqueta de
+                balanza.
+              </>
+            )}
           </p>
         </div>
       )}

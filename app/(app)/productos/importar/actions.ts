@@ -9,7 +9,10 @@ export type FilaImportable = {
   tipo: "kg" | "unidad";
   precio: number;
   costo?: number;
+  /** El de la balanza. Si no viene, el producto queda sin PLU: no se inventa. */
   plu?: number;
+  barcode?: string;
+  sku?: string;
   categoria?: string;
   minimo?: number;
   vence?: boolean;
@@ -22,6 +25,8 @@ export type ResultadoImport = ActionState & {
   creados?: number;
   actualizados?: number;
   ajustes_stock?: number;
+  /** Cuántas filas vinieron sin PLU: hay que buscarlos en la balanza. */
+  sin_plu?: number;
 };
 
 /** Tope defensivo: una planilla más larga que esto es casi seguro un error. */
@@ -48,6 +53,8 @@ export async function importarProductos(
     precio: f.precio,
     costo: f.costo ?? null,
     plu: f.plu ?? null,
+    barcode: f.barcode ?? null,
+    sku: f.sku ?? null,
     categoria: f.categoria ?? null,
     minimo: f.minimo ?? null,
     vence: f.vence ?? false,
@@ -64,6 +71,7 @@ export async function importarProductos(
     creados: number;
     actualizados: number;
     ajustes_stock: number;
+    sin_plu: number;
   };
 
   revalidatePath("/productos");

@@ -1,12 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { AlertTriangle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Card, Field, Input, Select, Textarea } from "@/components/ui/form";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ActionState } from "@/lib/auth";
+import { sugerirPlu } from "./actions";
 
 export type ProductFormValues = {
   id?: string;
@@ -60,6 +62,8 @@ export function ProductForm({
   const [unitType, setUnitType] = useState<"kg" | "unidad">(p.unit_type);
   const [trackExpiry, setTrackExpiry] = useState(p.track_expiry);
   const [price, setPrice] = useState(String(p.price));
+  const [plu, setPlu] = useState(p.plu != null ? String(p.plu) : "");
+  const [sugiriendo, startSugerir] = useTransition();
 
   useEffect(() => {
     if (state.error) toast.error(state.error);
@@ -166,11 +170,66 @@ export function ProductForm({
           </Card>
 
           <Card className="flex flex-col gap-4 p-5">
-            <p className="text-sm font-semibold">Identificación</p>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold">Identificación</p>
+              <p className="text-[12.5px] leading-relaxed text-muted">
+                Un producto se identifica por su <strong>PLU</strong> si se pesa en
+                la balanza, o por su <strong>código de barras</strong> si viene
+                envasado de fábrica. Puede tener uno, el otro, o los dos.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2.5">
+              <Field
+                label="PLU de balanza"
+                error={err?.plu?.[0]}
+                hint="El número que ya tiene cargado la balanza para este producto"
+              >
+                <Input
+                  name="plu"
+                  inputMode="numeric"
+                  value={plu}
+                  onChange={(e) => setPlu(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Vacío si no pasa por balanza"
+                />
+              </Field>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={sugiriendo}
+                onClick={() =>
+                  startSugerir(async () => {
+                    const r = await sugerirPlu();
+                    if (r.error) toast.error(r.error);
+                    else if (r.plu) {
+                      setPlu(String(r.plu));
+                      toast.success(
+                        `Te propongo el ${r.plu}. Cargalo con ese número en las cuatro balanzas.`
+                      );
+                    }
+                  })
+                }
+              >
+                <Sparkles className="size-4" strokeWidth={1.8} />
+                Sugerir libre
+              </Button>
+            </div>
+
+            {unitType === "kg" && plu.trim() === "" && (
+              <p className="flex items-start gap-2.5 rounded-lg bg-warn-bg px-3.5 py-2.5 text-[12.5px] leading-relaxed text-warn">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" strokeWidth={1.8} />
+                <span>
+                  Este producto se pesa, así que casi seguro tiene un PLU en la
+                  balanza. Sin él, el mostrador no va a poder leer su etiqueta:
+                  hay que buscarlo por nombre y tipear el peso a mano.
+                </span>
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <Field
                 label="Código de barras del fabricante"
-                hint="Solo para envasados que ya vienen con EAN"
+                hint="El EAN que ya trae el paquete"
               >
                 <Input name="barcode" defaultValue={p.barcode ?? ""} inputMode="numeric" />
               </Field>
@@ -178,6 +237,13 @@ export function ProductForm({
                 <Input name="sku" defaultValue={p.sku ?? ""} />
               </Field>
             </div>
+
+            {isEdit && p.plu != null && (
+              <p className="text-[12px] leading-relaxed text-faint">
+                Si cambiás el PLU, las etiquetas ya impresas con el {p.plu} van a
+                escanear otra cosa. Cambialo solo si lo cargaste mal.
+              </p>
+            )}
           </Card>
         </div>
 
@@ -282,8 +348,10 @@ export function ProductForm({
                 <span className="flex flex-col gap-0.5">
                   <span className="text-[13px] font-medium">Producto activo</span>
                   <span className="text-[11.5px] leading-relaxed text-muted">
-                    Si lo desactivás deja de aparecer en el mostrador. El PLU{" "}
-                    {p.plu} queda reservado para siempre.
+                    Si lo desactivás deja de aparecer en el mostrador
+                    {p.plu != null
+                      ? `, pero el PLU ${p.plu} queda reservado: nunca se le da a otro producto.`
+                      : "."}
                   </span>
                 </span>
               </label>
@@ -307,7 +375,8 @@ export function ProductForm({
         </Link>
         {!isEdit && (
           <span className="text-xs text-faint">
-            El PLU se asigna solo al crearlo.
+            El PLU sale de la balanza. Si es un producto nuevo que todavía no
+            está cargada, pedí uno libre.
           </span>
         )}
       </div>

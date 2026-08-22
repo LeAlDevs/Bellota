@@ -11,7 +11,12 @@ import { cn } from "@/lib/utils";
 import { importarProductos, type FilaImportable } from "./actions";
 
 export type Store = { id: string; name: string };
-export type Existente = { id: string; plu: number; nombre: string };
+export type Existente = {
+  id: string;
+  plu: number | null;
+  barcode: string | null;
+  nombre: string;
+};
 
 type Estado = "nuevo" | "actualiza" | "error";
 
@@ -21,7 +26,8 @@ type FilaPreview = {
   problema?: string;
   nombre: string;
   plu?: number;
-  pluAsignado?: number;
+  barcode?: string;
+  sku?: string;
   tipo?: "kg" | "unidad";
   precio?: number;
   costo?: number;
@@ -80,8 +86,14 @@ const ALIAS: Record<string, string> = {
   articulo: "nombre",
   detalle: "nombre",
   plu: "plu",
-  codigo: "plu",
+  "plu balanza": "plu",
   "codigo balanza": "plu",
+  "codigo de barras": "barcode",
+  "codigo de barra": "barcode",
+  ean: "barcode",
+  barcode: "barcode",
+  sku: "sku",
+  "codigo interno": "sku",
   tipo: "tipo",
   unidad: "tipo",
   "se vende por": "tipo",
@@ -119,13 +131,20 @@ export function Importer({
   const [enviando, startEnviar] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const porPlu = new Map(existentes.map((e) => [e.plu, e]));
+  const porPlu = new Map(
+    existentes.filter((e) => e.plu != null).map((e) => [e.plu as number, e])
+  );
+  const porBarcode = new Map(
+    existentes.filter((e) => e.barcode).map((e) => [e.barcode as string, e])
+  );
   const porNombre = new Map(existentes.map((e) => [norm(e.nombre), e]));
 
   function descargarPlantilla() {
     const encabezados = [
       "Nombre",
       "PLU",
+      "Código de barras",
+      "SKU",
       "Tipo",
       "Costo",
       "Precio de venta",
@@ -135,9 +154,12 @@ export function Importer({
       "Días de vida útil",
       ...stores.map((s) => `Stock ${s.name}`),
     ];
+    // Los tres casos reales: lo que se pesa lleva PLU, lo envasado lleva EAN,
+    // y lo que se arma acá adentro puede no llevar ninguno de los dos.
     const ejemplo = [
-      ["Jamón crudo estacionado", "", "kg", 28314, 42900, "Fiambres", 5, "no", "", ...stores.map(() => 0)],
-      ["Picada Ibérico 800 g", "", "unidad", 27730, 47000, "Elaborados", 4, "sí", 4, ...stores.map(() => 0)],
+      ["Jamón crudo estacionado", 412, "", "", "kg", 28314, 42900, "Fiambres", 5, "no", "", ...stores.map(() => 0)],
+      ["Aceitunas verdes 350 g", "", "7791234567890", "ACE350", "unidad", 4100, 6400, "Envasados", 6, "no", "", ...stores.map(() => 0)],
+      ["Picada Ibérico 800 g", 3302, "", "", "unidad", 27730, 47000, "Elaborados", 4, "sí", 4, ...stores.map(() => 0)],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([encabezados, ...ejemplo]);
@@ -197,6 +219,8 @@ export function Importer({
         const precio = toNumber(v.precio);
         const costo = toNumber(v.costo);
         const plu = toNumber(v.plu);
+        const barcode = String(v.barcode ?? "").trim() || undefined;
+        const sku = String(v.sku ?? "").trim() || undefined;
         const minimo = toNumber(v.minimo);
         const vidaUtil = toNumber(v.vida_util);
         const categoria = String(v.categoria ?? "").trim() || undefined;
@@ -206,6 +230,8 @@ export function Importer({
           linea: i + 2, // +2: la fila 1 son los encabezados
           nombre,
           plu: plu !== undefined && !Number.isNaN(plu) ? Math.trunc(plu) : undefined,
+          barcode,
+          sku,
           tipo,
           precio,
           costo: costo !== undefined && !Number.isNaN(costo) ? costo : undefined,
@@ -236,8 +262,12 @@ export function Importer({
 
         if (problema) return { ...base, estado: "error" as Estado, problema };
 
+        // Mismo orden de confianza que usa la base: PLU, después código de
+        // barras, y recién después el nombre.
         const existente =
-          base.plu !== undefined ? porPlu.get(base.plu) : porNombre.get(norm(nombre));
+          (base.plu !== undefined ? porPlu.get(base.plu) : undefined) ??
+          (barcode ? porBarcode.get(barcode) : undefined) ??
+          porNombre.get(norm(nombre));
 
         return {
           ...base,
@@ -262,6 +292,8 @@ export function Importer({
         precio: f.precio!,
         costo: f.costo,
         plu: f.plu,
+        barcode: f.barcode,
+        sku: f.sku,
         categoria: f.categoria,
         minimo: f.minimo,
         vence: f.vence,
@@ -278,6 +310,12 @@ export function Importer({
       toast.success(
         `${res.creados} nuevos, ${res.actualizados} actualizados, ${res.ajustes_stock} ajustes de stock.`
       );
+      if (res.sin_plu) {
+        toast.warning(
+          `${res.sin_plu} ${res.sin_plu === 1 ? "producto quedó" : "productos quedaron"} sin PLU. Buscalos en la balanza y completalos, o no se van a poder escanear.`,
+          { duration: 8000 }
+        );
+      }
       setFilas(null);
       setArchivo(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -414,8 +452,22 @@ export function Importer({
                   <div className="text-muted">
                     {f.tipo === "kg" ? "kg" : f.tipo === "unidad" ? "unidad" : "—"}
                   </div>
-                  <div className="tnum text-right text-muted">
-                    {f.plu ?? (f.estado === "nuevo" ? "auto" : "—")}
+                  {/* Sin PLU no se inventa ninguno: se marca para que lo
+                      busquen en la balanza y lo completen. */}
+                  <div
+                    className={cn(
+                      "tnum text-right",
+                      f.plu === undefined && f.tipo === "kg" && f.estado !== "error"
+                        ? "font-semibold text-warn"
+                        : "text-muted"
+                    )}
+                    title={
+                      f.plu === undefined && f.tipo === "kg"
+                        ? "Se pesa pero la planilla no trae PLU: va a quedar sin etiqueta escaneable"
+                        : undefined
+                    }
+                  >
+                    {f.plu ?? (f.tipo === "kg" ? "falta" : "—")}
                   </div>
                   <div className="tnum text-right">
                     {f.precio !== undefined && !Number.isNaN(f.precio)
@@ -461,11 +513,15 @@ export function Importer({
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warn" strokeWidth={1.8} />
         )}
         <p className="text-[12.5px] leading-relaxed text-muted">
-          Las columnas de stock dicen <strong>cuánto hay</strong>, no cuánto sumar. Si
-          reimportás la misma planilla no se duplica nada: el sistema calcula la
-          diferencia contra lo que ya tenés. Y el costo de la planilla solo se
-          aplica mientras el producto nunca haya recibido una compra — después
-          manda el promedio ponderado.
+          <strong>El PLU sale de la balanza.</strong> Si la columna viene vacía el
+          producto queda sin PLU: el sistema nunca inventa uno, porque un número
+          inventado haría que la etiqueta escanee otro producto en el mostrador.
+          {" · "}
+          Las columnas de stock dicen <strong>cuánto hay</strong>, no cuánto sumar,
+          así que reimportar la misma planilla no duplica nada.
+          {" · "}
+          El costo de la planilla solo se aplica mientras el producto nunca haya
+          recibido una compra; después manda el promedio ponderado.
         </p>
       </div>
     </div>

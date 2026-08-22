@@ -116,31 +116,60 @@ await paso("can_edit_module('productos') = true", async () => {
 });
 
 let prod1;
-await paso("create_product asigna PLU 1000", async () => {
+await paso("create_product guarda el PLU que viene de la balanza", async () => {
   const r = await db.query(
-    "select * from public.create_product('Jamón crudo estacionado', 'kg', 42900, null, 'simple', 28314, 5, false, null, null, null, null, null)"
+    "select * from public.create_product('Jamón crudo estacionado', 'kg', 42900, null, 'simple', 28314, 5, false, null, null, null, null, 412)"
   );
   prod1 = r.rows[0];
-  if (prod1.plu !== 1000) throw new Error("PLU esperado 1000, salió " + prod1.plu);
+  if (prod1.plu !== 412) throw new Error("esperaba el 412, guardó " + prod1.plu);
   return `PLU ${prod1.plu}`;
 });
 
-await paso("el segundo producto saca 1001, no repite", async () => {
+await paso("un envasado puede quedar SIN PLU", async () => {
   const r = await db.query(
-    "select * from public.create_product('Queso sardo', 'kg', 28400, null, 'simple', 20164, 3, false, null, null, null, null, null)"
+    "select * from public.create_product('Aceitunas verdes 350 g', 'unidad', 6400, null, 'simple', 4100, 6, false, null, '7791234567890', null, null, null)"
   );
-  if (r.rows[0].plu !== 1001) throw new Error("PLU esperado 1001, salió " + r.rows[0].plu);
-  return `PLU ${r.rows[0].plu}`;
+  if (r.rows[0].plu !== null) throw new Error("le puso PLU " + r.rows[0].plu);
+  return "plu null, se vende por su EAN";
 });
 
-await paso("el alta dejó el precio en price_history", async () => {
-  const r = await db.query("select count(*)::int as n from public.price_history");
-  if (r.rows[0].n !== 2) throw new Error("esperaba 2 filas, hay " + r.rows[0].n);
+await paso("dos productos con el mismo PLU se rechazan", async () => {
+  try {
+    await db.query(
+      "select * from public.create_product('Otro con el mismo PLU', 'kg', 100, null, 'simple', 0, 0, false, null, null, null, null, 412)"
+    );
+  } catch {
+    return "rechazado, bien";
+  }
+  throw new Error("dejó repetir el PLU");
+});
+
+await paso("pero varios sin PLU conviven sin chocar", async () => {
+  await db.query(
+    "select * from public.create_product('Gaseosa 500 ml', 'unidad', 2200, null, 'simple', 1400, 12, false, null, '7790001112223', null, null, null)"
+  );
+  const r = await db.query("select count(*)::int as n from public.products where plu is null");
+  if (r.rows[0].n !== 2) throw new Error("esperaba 2 sin PLU, hay " + r.rows[0].n);
+  return "2 productos sin PLU";
+});
+
+await paso("cada alta dejó su precio en price_history", async () => {
+  // Contra la cantidad de productos, no contra un número fijo: así el test no
+  // se rompe cada vez que agrego un caso más arriba.
+  const r = await db.query(`
+    select (select count(*) from public.price_history)::int as historial,
+           (select count(*) from public.products)::int as productos
+  `);
+  const { historial, productos } = r.rows[0];
+  if (historial !== productos) {
+    throw new Error(`${productos} productos pero ${historial} filas de historial`);
+  }
+  return `${historial} altas registradas`;
 });
 
 await paso("update_product registra el cambio de precio", async () => {
   await db.query(
-    "select public.update_product($1, 'Jamón crudo estacionado', 'kg', 45900, null, 'simple', 5, false, null, null, null, null, true, 'aumento del proveedor')",
+    "select public.update_product($1, 'Jamón crudo estacionado', 'kg', 45900, null, 'simple', 5, false, null, null, null, null, true, 'aumento del proveedor', 412)",
     [prod1.id]
   );
   const r = await db.query(
@@ -205,16 +234,36 @@ await paso("upsert_category crea y renombra", async () => {
   return r.rows[0].name;
 });
 
-await paso("un PLU dado de baja NO se reutiliza", async () => {
-  const antes = await db.query("select max(plu)::int as m from public.products");
-  await db.query("delete from public.products where plu = $1", [antes.rows[0].m]);
-  const r = await db.query(
-    "select * from public.create_product('Producto nuevo', 'unidad', 100, null, 'simple', 0, 0, false, null, null, null, null, null)"
+await paso("suggest_plu() propone un numero libre y NO lo consume", async () => {
+  const a = await db.query("select public.suggest_plu() as p");
+  const b = await db.query("select public.suggest_plu() as p");
+  if (a.rows[0].p !== b.rows[0].p) throw new Error("consumió el número entre llamadas");
+  const max = await db.query("select max(plu)::int as m from public.products");
+  if (a.rows[0].p <= max.rows[0].m) throw new Error("propuso uno ya usado");
+  return `propone ${a.rows[0].p}, el máximo usado es ${max.rows[0].m}`;
+});
+
+await paso("un PLU dado de baja NO se vuelve a sugerir", async () => {
+  // Producto descartable con un PLU alto, para no borrar uno que usan los
+  // pasos siguientes.
+  const alto = 8800;
+  await db.query(
+    "select * from public.create_product('Descartable', 'unidad', 1, null, 'simple', 0, 0, false, null, null, null, null, $1)",
+    [alto]
   );
-  if (r.rows[0].plu <= antes.rows[0].m) {
-    throw new Error(`reutilizó el ${r.rows[0].plu}`);
-  }
-  return `borré el ${antes.rows[0].m}, el nuevo sacó ${r.rows[0].plu}`;
+  await db.query("delete from public.products where plu = $1", [alto]);
+  const r = await db.query("select public.suggest_plu() as p");
+  if (r.rows[0].p <= alto) throw new Error(`propuso el ${r.rows[0].p}, reciclando`);
+  return `borré el ${alto}, ahora propone ${r.rows[0].p}`;
+});
+
+await paso("set_product_active no toca el PLU", async () => {
+  await db.query("select public.set_product_active($1, false)", [prod1.id]);
+  const r = await db.query("select plu, is_active from public.products where id = $1", [prod1.id]);
+  if (r.rows[0].plu !== 412) throw new Error("el PLU quedó en " + r.rows[0].plu);
+  if (r.rows[0].is_active !== false) throw new Error("no lo desactivó");
+  await db.query("select public.set_product_active($1, true)", [prod1.id]);
+  return "de baja y de alta, PLU intacto";
 });
 
 // ── Importación de catálogo ───────────────────────────────────────────
@@ -293,12 +342,35 @@ await paso("la planilla dice CUÁNTO HAY, no cuánto sumar", async () => {
   return `bajó a 2,400 con un movimiento de ${m.rows[0].delta} (ajuste)`;
 });
 
-await paso("sin PLU en la planilla, Bellota se lo asigna", async () => {
+await paso("sin PLU en la planilla, queda SIN PLU (no se inventa)", async () => {
   const r = await db.query(
     "select plu from public.products where name = 'Mortadela con pistacho'"
   );
-  if (!r.rows[0].plu) throw new Error("quedó sin PLU");
-  return `PLU ${r.rows[0].plu}`;
+  if (r.rows[0].plu !== null) throw new Error("inventó el PLU " + r.rows[0].plu);
+  return "plu null, como debe ser";
+});
+
+await paso("la planilla CON PLU lo guarda tal cual", async () => {
+  const fila = [{ nombre: "Salame Milán", tipo: "kg", precio: 19800, plu: "1108", categoria: "Fiambres" }];
+  await db.query("select public.import_products($1::jsonb)", [JSON.stringify(fila)]);
+  const r = await db.query("select plu from public.products where name = 'Salame Milán'");
+  if (r.rows[0].plu !== 1108) throw new Error("guardó " + r.rows[0].plu);
+  return "PLU 1108, el de la balanza";
+});
+
+await paso("reimportar matchea por PLU aunque cambie el nombre", async () => {
+  const fila = [{ nombre: "Salame Milán estacionado", tipo: "kg", precio: 21000, plu: "1108" }];
+  const r = await db.query("select public.import_products($1::jsonb) as res", [JSON.stringify(fila)]);
+  if (r.rows[0].res.creados !== 0) throw new Error("creó uno nuevo en vez de actualizar");
+  const p = await db.query("select name from public.products where plu = 1108");
+  return `actualizó el existente -> "${p.rows[0].name}"`;
+});
+
+await paso("un envasado matchea por codigo de barras", async () => {
+  const fila = [{ nombre: "Aceitunas verdes 350 g x12", tipo: "unidad", precio: 6900, barcode: "7791234567890" }];
+  const r = await db.query("select public.import_products($1::jsonb) as res", [JSON.stringify(fila)]);
+  if (r.rows[0].res.creados !== 0) throw new Error("duplicó el producto en vez de matchear por EAN");
+  return "matcheó por EAN, no duplicó";
 });
 
 await paso("la planilla NO pisa un costo que ya viene de una compra", async () => {

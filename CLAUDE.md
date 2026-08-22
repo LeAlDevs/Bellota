@@ -33,8 +33,13 @@ Formatos con `Intl` es-AR desde `lib/format.ts` — nunca a mano.
    mover cuando cambie el costo.
 6. **Todos VEN los dos locales; cada uno OPERA el punto de venta del suyo.**
    Gatear con `requireStoreForPos()`, no filtrar las lecturas.
-7. **El PLU lo asigna el sistema, es único y NUNCA se reutiliza.** Si se recicla,
-   una etiqueta vieja de la balanza escanea el producto equivocado.
+7. **El PLU nace en la balanza, no en Bellota.** Las balanzas ya tienen su catálogo
+   cargado: el sistema **recibe** el número, nunca lo inventa. Un PLU inventado hace
+   que la etiqueta escanee el producto equivocado en el mostrador. `products.plu` es
+   **nullable** (los envasados de fábrica se venden por su EAN y no pasan por balanza),
+   único entre los no nulos, y **jamás se reutiliza** aunque se dé de baja el producto.
+   `suggest_plu()` propone un número libre —sin consumirlo— solo para un producto nuevo
+   que todavía hay que dar de alta en las balanzas.
 8. **`unit_type` (`kg` | `unidad`) gobierna todo.** Las cantidades son
    `numeric(12,3)`, con decimales de verdad.
 9. **No hay impresora térmica.** El ticket se manda por email, en cola con

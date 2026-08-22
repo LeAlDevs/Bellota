@@ -13,9 +13,16 @@ Estado: **diseño para validar. Nada de código hasta que esto esté aprobado.**
 
 ## 1. Qué resuelve Bellota
 
-Hoy las balanzas no tienen catálogo: **todos los tickets dicen "Varios"** y el precio se
-tipea a mano en cada pesada. No hay stock, no hay costo, no se sabe qué se vende ni
-cuánto deja. La información del negocio no existe en ningún lado.
+Las balanzas **sí tienen catálogo**: cada producto tiene su PLU cargado. El problema es
+que hoy no se usa — se pesa contra un genérico y el ticket sale diciendo **"Varios"**, con
+el precio tipeado a mano en cada pesada. Así, no hay stock, no hay costo y no se sabe qué
+se vende: la información del negocio existe en las balanzas pero no llega a ningún lado.
+
+> Corregido el 22/08/2026. Antes este documento decía que las balanzas no tenían catálogo
+> y que Bellota inventaba los PLU. Es al revés, y la diferencia no es menor: **un PLU
+> inventado hace que la etiqueta escanee el producto equivocado en el mostrador.** Bellota
+> recibe los PLU que ya existen; solo propone uno libre cuando el producto es nuevo y
+> todavía no está cargado en las balanzas.
 
 Bellota tiene que dar, en este orden de importancia:
 
@@ -114,7 +121,9 @@ acá con `has_pos = false`.
 `products`
 - `name`, `description`, `category_id`
 - **`unit_type`**: `kg` | `unidad` — la decisión que atraviesa todo el sistema
-- **`plu`** (int, único) — código corto para las balanzas. Lo asigna Bellota, es el mismo en las 4.
+- **`plu`** (int, **nullable**, único entre los que no son nulos) — el código corto que ya
+  tiene cargado la balanza. Lo trae el negocio, no lo inventa Bellota. Queda vacío en los
+  productos que nunca pasan por balanza (envasados de fábrica con su propio EAN).
 - `barcode` (EAN del fabricante, para envasados), `sku` (interno)
 - **`kind`**: `simple` (se compra y se vende) | `elaborado` (se produce) | `combo` (promo)
 - `price` — precio final de venta, por kg o por unidad
@@ -130,21 +139,33 @@ acá con `has_pos = false`.
 | Columna | Obligatoria | Nota |
 |---|---|---|
 | Nombre | sí | |
-| PLU | sí | Clave de matcheo. Si existe, actualiza; si no, crea. |
+| PLU | no | El de la balanza. **Si viene vacío el producto queda sin PLU: nunca se inventa uno.** |
+| Código de barras | no | El EAN de fábrica de los envasados |
+| SKU | no | Código interno, opcional |
 | **Tipo** | sí | `kg` o `unidad`. **Es la columna que gobierna todo el sistema.** |
-| Costo | no | Costo inicial; después lo recalcula el promedio ponderado |
+| Costo | no | Costo inicial; solo se aplica mientras el producto nunca haya recibido una compra |
 | Precio de venta | sí | |
-| Stock Ramos | no | Genera movimiento `alta_inicial` en ese local |
+| Stock Ramos | no | **Cuánto hay**, no cuánto sumar |
 | Stock Mosconi | no | Ídem |
 | Categoría | no | Se crea sola si no existe |
 | Vence | no | `sí`/`no` → activa el control de lotes |
 
 Plantilla descargable desde el sistema. La importación muestra **vista previa** (qué crea,
-qué actualiza, qué está mal) antes de confirmar, y es **idempotente por PLU**.
+qué actualiza, qué está mal) antes de confirmar.
 
-> **Por qué PLU aparte del SKU:** las balanzas manejan códigos numéricos cortos, no el SKU
-> interno. El PLU tiene que ser único, estable y **nunca reutilizarse** aunque se dé de baja
-> el producto: si se recicla, una etiqueta vieja escanea el producto equivocado.
+**Matcheo, por orden de confianza: PLU → código de barras → nombre.** Las columnas de stock
+dicen cuánto hay, así que reimportar la misma planilla no duplica productos ni suma el stock
+dos veces.
+
+> **Por qué el PLU va aparte del SKU y del código de barras:** son tres identificadores para
+> tres circuitos distintos. El **PLU** es el número corto que la balanza imprime dentro de la
+> etiqueta de peso variable. El **código de barras** es el EAN que ya trae el paquete de
+> fábrica. El **SKU** es interno y no lo lee ninguna máquina. Un producto puede tener uno,
+> otro, o los dos primeros.
+>
+> El PLU **nunca se reutiliza**, aunque se dé de baja el producto: si se recicla, una etiqueta
+> vieja pegada en un paquete escanea el producto equivocado. Por eso el contador de
+> sugerencias solo avanza, nunca vuelve atrás.
 
 ### 4.3 Stock
 
@@ -310,9 +331,19 @@ contesta a Ramos o a Mosconi según corresponda. Requiere cargar SPF/DKIM en el 
 - **Cartelería de góndola** imprimible, para que el cartel y la balanza no se peleen
 - `scale_sync_log` — qué se exportó, cuándo, a qué balanza
 
-**Sincronización:** Bellota es la fuente de verdad del PLU y del precio. Exporta el catálogo
-en el formato que consume el software de la balanza (Systel **Qendra**) y se carga en las 4.
-Sin esto, cada aumento se toca 5 veces y las balanzas se desalinean entre sí.
+**Sincronización.** Hay que separar dos cosas que antes estaban mezcladas en este documento:
+
+- **El PLU nace en la balanza.** Ya existe, y Bellota lo recibe. La carga inicial ideal es un
+  **export del catálogo de las balanzas** (vía Qendra), no una lista tipeada a mano: así los
+  números entran exactos.
+- **El precio pasa a nacer en Bellota.** De acá en adelante se carga en un solo lugar y baja
+  a las 4 balanzas. Sin esto, cada aumento se toca 5 veces y las balanzas se desalinean.
+
+`scale_sync_log` registra qué se exportó, cuándo y a qué balanza.
+
+> **A verificar antes de la fase 9:** que el PLU de un mismo producto sea idéntico en las 4
+> balanzas. Si Ramos tiene el jamón en el 412 y Mosconi en el 380, el catálogo no es uno solo
+> y hay que unificarlo antes de sincronizar precios. Se resuelve exportando las 4 y comparando.
 
 ### 4.11 Escaneo de etiqueta de balanza
 
