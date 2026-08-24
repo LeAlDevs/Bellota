@@ -535,5 +535,145 @@ await paso("no se puede transferir de un local a si mismo", async () => {
   throw new Error("lo dejó pasar");
 });
 
+// ── Compras y costo promedio ponderado ────────────────────────────────
+let prov, jamon;
+await paso("alta de proveedor", async () => {
+  const r = await db.query("select * from public.upsert_supplier(null, 'Frigorífico del Sur', '30-11111111-9')");
+  prov = r.rows[0].id;
+  return r.rows[0].name;
+});
+
+await paso("preparo un producto con stock y costo conocidos", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Bondiola ahumada', 'kg', 31500, null, 'simple', 20000, 2, false, null, null, null, null, 1077)"
+  );
+  jamon = r.rows[0].id;
+  await db.query("select public.adjust_stock($1, $2, 10, 'alta_inicial')", [ramos, jamon]);
+  return "10 kg a $20.000 de costo";
+});
+
+await paso("el reparto entre locales tiene que cerrar con lo recibido", async () => {
+  const items = JSON.stringify([
+    { product_id: jamon, qty_ordered: 10, qty_received: 9.8, unit_cost: 24000,
+      allocations: { [ramos]: 5, [mosconi]: 3 } },
+  ]);
+  try {
+    await db.query(
+      "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+      [prov, items]
+    );
+  } catch (e) {
+    if (!/no cierra/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada: llegaron 9,8 y repartían 8";
+  }
+  throw new Error("dejó pasar un reparto que no cierra");
+});
+
+await paso("una compra rechazada no deja el documento a medias", async () => {
+  const r = await db.query("select count(*)::int as n from public.purchases");
+  if (r.rows[0].n !== 0) throw new Error("quedaron " + r.rows[0].n + " compras");
+  return "sin compras huérfanas";
+});
+
+await paso("la recepcion reparte el stock entre los dos locales", async () => {
+  const items = JSON.stringify([
+    { product_id: jamon, qty_ordered: 10, qty_received: 9.8, unit_cost: 24000,
+      allocations: { [ramos]: 6, [mosconi]: 3.8 } },
+  ]);
+  await db.query(
+    "select public.receive_purchase($1, null, true, 'A-0001-00012345', 'contado', 'Entrega del martes', $2::jsonb)",
+    [prov, items]
+  );
+  const a = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, jamon]);
+  const b = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [mosconi, jamon]);
+  if (Number(a.rows[0].qty) !== 16) throw new Error("Ramos quedó en " + a.rows[0].qty);
+  if (Number(b.rows[0].qty) !== 3.8) throw new Error("Mosconi quedó en " + b.rows[0].qty);
+  return "Ramos 16,000 / Mosconi 3,800";
+});
+
+await paso("el costo promedio ponderado sale bien", async () => {
+  // (10 x 20000 + 9,8 x 24000) / 19,8 = 21979,80
+  const r = await db.query("select cost from public.products where id = $1", [jamon]);
+  const esperado = (10 * 20000 + 9.8 * 24000) / 19.8;
+  const got = Number(r.rows[0].cost);
+  if (Math.abs(got - esperado) > 0.01) {
+    throw new Error(`esperaba ${esperado.toFixed(2)} y dio ${got}`);
+  }
+  return `$${got} (antes $20.000, compró a $24.000)`;
+});
+
+await paso("el total de la compra es lo recibido por el costo, no lo pedido", async () => {
+  const r = await db.query("select total from public.purchases order by created_at desc limit 1");
+  const esperado = 9.8 * 24000;
+  if (Math.abs(Number(r.rows[0].total) - esperado) > 0.01) {
+    throw new Error("el total dio " + r.rows[0].total);
+  }
+  return `$${esperado} = 9,8 kg x $24.000`;
+});
+
+await paso("una compra al contado NO genera deuda", async () => {
+  const r = await db.query("select count(*)::int as n from public.supplier_movements");
+  if (r.rows[0].n !== 0) throw new Error("generó " + r.rows[0].n + " movimientos");
+  return "sin deuda, como corresponde";
+});
+
+await paso("una compra a cuenta corriente SI genera deuda", async () => {
+  const items = JSON.stringify([
+    { product_id: jamon, qty_received: 5, unit_cost: 25000, allocations: { [ramos]: 5 } },
+  ]);
+  await db.query(
+    "select public.receive_purchase($1, null, true, 'A-0001-00012346', 'cuenta_corriente', null, $2::jsonb)",
+    [prov, items]
+  );
+  const r = await db.query("select public.supplier_balances() as b");
+  const saldo = await db.query("select sum(amount)::numeric as s from public.supplier_movements where supplier_id = $1", [prov]);
+  if (Number(saldo.rows[0].s) !== 125000) throw new Error("el saldo dio " + saldo.rows[0].s);
+  return "le debemos $125.000";
+});
+
+await paso("con stock negativo el costo no se vuelve absurdo", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Producto en rojo', 'kg', 1000, null, 'simple', 500, 0, false, null, null, null, null, 7777)"
+  );
+  const pid = r.rows[0].id;
+  await db.query("select public.adjust_stock($1, $2, -8, 'venta')", [ramos, pid]);
+  const items = JSON.stringify([
+    { product_id: pid, qty_received: 4, unit_cost: 900, allocations: { [ramos]: 4 } },
+  ]);
+  await db.query(
+    "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+    [prov, items]
+  );
+  const c = await db.query("select cost from public.products where id = $1", [pid]);
+  const costo = Number(c.rows[0].cost);
+  if (costo !== 900) throw new Error("el costo dio " + costo + ", esperaba 900");
+  return "quedó en $900, el costo de la compra";
+});
+
+await paso("no se puede recibir una linea con cantidad cero", async () => {
+  const items = JSON.stringify([
+    { product_id: jamon, qty_received: 0, unit_cost: 100, allocations: { [ramos]: 0 } },
+  ]);
+  try {
+    await db.query(
+      "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+      [prov, items]
+    );
+  } catch (e) {
+    if (!/mayor que cero/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada, bien";
+  }
+  throw new Error("lo dejó pasar");
+});
+
+await paso("la compra deja movimientos de stock con motivo compra", async () => {
+  const r = await db.query(
+    "select count(*)::int as n from public.stock_movements where reason = 'compra' and product_id = $1",
+    [jamon]
+  );
+  if (r.rows[0].n !== 3) throw new Error("hay " + r.rows[0].n + " movimientos, esperaba 3");
+  return "3 movimientos (Ramos, Mosconi y la segunda compra)";
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);

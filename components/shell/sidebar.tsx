@@ -94,7 +94,17 @@ export function Sidebar({ perms, cajaAbierta }: Props) {
                     {isActive && children.length > 0 && (
                       <div className="flex flex-col gap-px py-1 pl-[34px]">
                         {children.map((child) => {
-                          const childActive = pathname === child.href;
+                          // La coincidencia más larga gana: estando en
+                          // /stock/compras/nueva se marca "Compras", no
+                          // "Existencias" (que es /stock y también prefija).
+                          const mejor = children
+                            .filter(
+                              (c) =>
+                                pathname === c.href ||
+                                pathname.startsWith(c.href + "/")
+                            )
+                            .sort((a, b) => b.href.length - a.href.length)[0];
+                          const childActive = mejor?.href === child.href;
                           return (
                             <Link
                               key={child.href}
