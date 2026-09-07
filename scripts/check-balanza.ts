@@ -2,25 +2,20 @@
 //
 //   npm run check:balanza
 //
-// SOBRE QUÉ PRUEBA ESTO Y QUÉ NO:
+// El formato quedó CONFIRMADO el 07/09/2026 contra códigos escaneados con la
+// lectora, no contra una foto: están abajo, en CODIGOS_REALES.
 //
-// El formato se dedujo de una FOTO de dos tickets reales (02/09/2026,
-// Fiambrería Bubi). De la foto se leen bien la descripción, el PLU, el peso, el
-// precio y el importe; los códigos de barras se leen a medias.
+// Dos cosas que salieron de esa confirmación y que yo había supuesto mal:
 //
-// Lo que sigue verifica dos cosas distintas, y conviene no confundirlas:
+//   1. El total NO es una línea con un PLU reservado. Se distingue por el
+//      PREFIJO: `20` es un producto, `22` es el total de la operación.
 //
-//   1. Que el parser sea consistente: lo que arma, lo lee igual. Eso se prueba
-//      solo y siempre pasa o falla de verdad.
-//
-//   2. Que el formato sea EL de la balanza. Eso NO se puede probar contra una
-//      foto: construir el código con mi hipótesis y después validar su propio
-//      dígito verificador es un razonamiento circular. Se cierra cargando los
-//      códigos reales en CODIGOS_REALES, escaneándolos con la lectora sobre un
-//      bloc de notas. Mientras esa lista esté vacía, el script lo dice.
+//   2. Por lo mismo, no hay ningún PLU prohibido. Había bloqueado el 2000 sin
+//      necesidad.
 
 import {
   armarEtiqueta,
+  armarEtiquetaTotal,
   ean13Valido,
   leerEtiqueta,
   pesoDesdeImporte,
@@ -55,15 +50,20 @@ const TICKETS: Ticket[] = [
 
 /**
  * Códigos escaneados con la lectora, tal cual los tipeó sobre un bloc de notas.
- * Formato: { codigo: "2000970036403", esperado: { plu: 97, importe: 3640 } }
- * Con esto cargado, el formato queda probado de verdad.
+ * Sin `plu`, la fila es el código del total de la operación.
  */
-const CODIGOS_REALES: { codigo: string; esperado: { plu: number; importe: number } }[] = [
-  // Ticket 95-25138 del 07/09/2026, de la prueba de venta real.
-  // Las dos líneas pesaron 0,200 kg y los códigos son DISTINTOS: lo que llevan
-  // es el importe, no el peso.
+const CODIGOS_REALES: {
+  codigo: string;
+  esperado: { plu?: number; importe: number };
+}[] = [
+  // Ticket 95-25138 del 07/09/2026, de la primera prueba de venta real.
+  //
+  // Las dos líneas pesaron 0,200 kg y los códigos son DISTINTOS: uno termina en
+  // 2600 y el otro en 2800, que son los dos importes. Si llevaran el peso, los
+  // dos dirían 000200. Es la prueba de que el código trae plata, no kilos.
   { codigo: "2000650026007", esperado: { plu: 65, importe: 2600 } },
   { codigo: "2000660028008", esperado: { plu: 66, importe: 2800 } },
+  { codigo: "2202000054009", esperado: { importe: 5400 } },
 ];
 
 let fallas = 0;
@@ -82,8 +82,8 @@ function paso(label: string, fn: () => string | void) {
 const f = FORMATO_POR_DEFECTO;
 console.log("Formato bajo prueba (hipótesis sacada de la foto):");
 console.log(
-  `  ${f.prefijo} + PLU(${f.largoPlu}) + importe(${f.largoImporte}) + verificador · ` +
-    `el PLU ${f.pluTotal} es el total de la operación`
+  `  línea: ${f.prefijosLinea.join("/")} + PLU(${f.largoPlu}) + importe(${f.largoImporte}) + verificador\n` +
+    `  total: ${f.prefijoTotal} + relleno + importe(${f.largoImporte}) + verificador`
 );
 console.log(`  PLU máximo que entra en este formato: ${pluMaximo(f)}\n`);
 
@@ -103,7 +103,7 @@ for (const t of TICKETS) {
     });
   }
   paso(`TOTAL $${t.total}`, () => {
-    const codigo = armarEtiqueta(f.pluTotal, t.total);
+    const codigo = armarEtiquetaTotal(t.total);
     const et = leerEtiqueta(codigo);
     if (et.tipo !== "total") throw new Error(`lo leyó como ${et.tipo}`);
     if (et.importe !== t.total) throw new Error(`sacó ${et.importe}`);
@@ -142,6 +142,25 @@ paso("un código de fábrica no se confunde con una etiqueta", () => {
   const et = leerEtiqueta("7791234567890");
   if (et.tipo !== "desconocido") throw new Error(`lo leyó como ${et.tipo}`);
   return "cae en desconocido";
+});
+
+paso("el total y la línea no se confunden entre sí", () => {
+  const linea = leerEtiqueta(armarEtiqueta(2000, 5400));
+  const total = leerEtiqueta(armarEtiquetaTotal(5400));
+  if (linea.tipo !== "linea") throw new Error("leyó la línea como " + linea.tipo);
+  if (total.tipo !== "total") throw new Error("leyó el total como " + total.tipo);
+  if (linea.codigo === total.codigo) throw new Error("salieron iguales");
+  return `${linea.codigo} es producto, ${total.codigo} es total`;
+});
+
+paso("el PLU 2000 ya no está prohibido", () => {
+  // Estaba bloqueado por una suposición mía que el ticket real desmintió: el
+  // total se marca con el prefijo 22, no con un PLU reservado.
+  const et = leerEtiqueta(armarEtiqueta(2000, 1000));
+  if (et.tipo !== "linea" || et.plu !== 2000) {
+    throw new Error("lo leyó como " + et.tipo);
+  }
+  return "es un PLU como cualquier otro";
 });
 
 paso("una lectura con un dígito cambiado se rechaza", () => {
@@ -189,11 +208,9 @@ console.log("\nContra códigos escaneados de verdad:");
 
 if (CODIGOS_REALES.length === 0) {
   console.log(
-    "  PENDIENTE  No hay ninguno cargado todavía, así que el formato sigue siendo\n" +
-      "             una hipótesis: coincide con lo que se ve en la foto, pero eso no\n" +
-      "             alcanza para darlo por cerrado. Para confirmarlo: escanear cada\n" +
-      "             código de barras del ticket con la lectora sobre un bloc de notas\n" +
-      "             y cargar los dígitos en CODIGOS_REALES, arriba en este archivo."
+    "  PENDIENTE  No hay ninguno cargado: el formato volvería a ser una hipótesis.\n" +
+      "             Se confirman escaneando los códigos con la lectora sobre un bloc\n" +
+      "             de notas y cargándolos en CODIGOS_REALES, arriba en este archivo."
   );
 } else {
   for (const c of CODIGOS_REALES) {
@@ -203,16 +220,23 @@ if (CODIGOS_REALES.length === 0) {
       }
       const et = leerEtiqueta(c.codigo);
       if (et.tipo === "desconocido") throw new Error(et.motivo);
-      if (et.tipo === "total") {
-        throw new Error(`lo leyó como el total de la operación, no como el PLU ${c.esperado.plu}`);
+
+      const esperaTotal = c.esperado.plu === undefined;
+      if (esperaTotal && et.tipo !== "total") {
+        throw new Error(`es el total del ticket y lo leyó como ${et.tipo}`);
       }
-      if (et.plu !== c.esperado.plu) {
+      if (!esperaTotal && et.tipo !== "linea") {
+        throw new Error(`es la línea del PLU ${c.esperado.plu} y lo leyó como ${et.tipo}`);
+      }
+      if (et.tipo === "linea" && et.plu !== c.esperado.plu) {
         throw new Error(`sacó PLU ${et.plu} y el ticket dice ${c.esperado.plu}`);
       }
       if (et.importe !== c.esperado.importe) {
         throw new Error(`sacó $${et.importe} y el ticket dice $${c.esperado.importe}`);
       }
-      return `PLU ${et.plu} · $${et.importe}`;
+      return et.tipo === "total"
+        ? `TOTAL $${et.importe}`
+        : `PLU ${et.plu} · $${et.importe}`;
     });
   }
 }

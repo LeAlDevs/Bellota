@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireCan, type ActionState } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { FORMATO_POR_DEFECTO, pluMaximo } from "@/lib/balanza";
+import { pluMaximo } from "@/lib/balanza";
 
 /**
  * formData.get() devuelve null si el campo no está en el form (por ejemplo un
@@ -39,10 +39,11 @@ const schema = z.object({
   // El PLU sale de la balanza. Puede no existir: los envasados de fábrica se
   // venden por su código de barras y no pasan nunca por la balanza.
   //
-  // El tope y el número reservado salen del formato real de la etiqueta: el
-  // PLU ocupa 4 dígitos, y el 2000 lo usa la balanza para el total de la
-  // operación. Un producto con PLU 2000 haría que el total de un ticket se
-  // escanee como ese producto.
+  // El tope sale del formato real de la etiqueta: el PLU ocupa 4 dígitos.
+  //
+  // No hay ningún PLU reservado. Yo había bloqueado el 2000 creyendo que la
+  // balanza lo usaba para el total del ticket, pero el ticket real mostró que
+  // el total se distingue por el PREFIJO (22 en vez de 20), no por el PLU.
   plu: z
     .number()
     .int("El PLU es un número entero.")
@@ -51,9 +52,6 @@ const schema = z.object({
       pluMaximo(),
       `El PLU no puede pasar de ${pluMaximo()}: no entra en el código de barras de la balanza.`
     )
-    .refine((v) => v !== FORMATO_POR_DEFECTO.pluTotal, {
-      message: `El ${FORMATO_POR_DEFECTO.pluTotal} lo usa la balanza para el total del ticket. Elegí otro.`,
-    })
     .optional(),
   min_stock: z.number().min(0, "El mínimo no puede ser negativo.").optional(),
   track_expiry: z.boolean().default(false),

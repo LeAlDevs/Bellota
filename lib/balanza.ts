@@ -1,11 +1,15 @@
 // Lectura de las etiquetas EAN-13 que imprimen las balanzas.
 //
-// Formato observado en los tickets de la balanza (02/09/2026, Fiambrería Bubi):
+// Formato CONFIRMADO contra códigos escaneados de verdad (07/09/2026):
 //
-//     2 0 | P P P P | I I I I I I | C
-//     └─┬─┘ └──┬───┘ └────┬─────┘ └┬┘
-//    prefijo  PLU      importe   verificador
-//                    en pesos, sin centavos
+//   Línea de producto           Total de la operación
+//   2 0 │PPPP│IIIIII│C          2 2 │0200│IIIIII│C
+//   └┬─┘ └┬─┘ └──┬─┘            └┬─┘ └┬─┘ └──┬─┘
+//  prefijo PLU  importe        prefijo fijo importe
+//
+// La balanza distingue la línea del total por el PREFIJO, no por el PLU: `20`
+// es un producto y `22` es el total de la operación. (Yo había asumido que el
+// total era una línea con un PLU reservado; el ticket dice otra cosa.)
 //
 // Dos cosas que hay que tener presentes SIEMPRE al tocar este archivo:
 //
@@ -15,31 +19,43 @@
 //      difieren, el cliente paga bien pero el stock se descuenta mal, y el
 //      error no se nota hasta que alguien cuenta la góndola.
 //
-//   2. El código 2000 no es un producto: es el TOTAL de la operación. Trae
-//      plata pero no trae productos, así que no sirve para cobrar — sirve para
-//      verificar que no quedó ninguna línea sin escanear.
+//      La prueba está en el ticket 95-25138: dos líneas de 0,200 kg cada una,
+//      con códigos DISTINTOS (…026007 y …028008). Si llevaran el peso, los dos
+//      dirían 000200.
+//
+//   2. El código del total trae plata pero no trae productos: no sirve para
+//      cobrar, sirve para verificar que no quedó ninguna línea sin escanear.
 //
 // El formato es configurable porque hay dos modelos de balanza y se configuran
 // a mano: si mañana cambian los largos, se cambia acá y en Configuración, sin
 // tocar el punto de venta.
 
 export type FormatoBalanza = {
-  /** Los dígitos con los que arranca toda etiqueta de balanza. */
-  prefijo: string;
+  /**
+   * Prefijos que identifican una LÍNEA de producto.
+   *
+   * Solo está el `20`, que es el único confirmado con un ticket en la mano. El
+   * manual de la línea Cuora menciona un `21` para lo que se vende por unidad,
+   * pero todavía no lo vi impreso: si aparece, el mostrador va a decir "no
+   * reconozco el código" y se agrega acá con la evidencia. Aceptar un prefijo
+   * sin confirmarlo es peor — cargaría una línea equivocada en silencio.
+   */
+  prefijosLinea: string[];
+  /** Prefijo del código del TOTAL de la operación. */
+  prefijoTotal: string;
+  /** Dígitos que ocupa el PLU dentro de la línea. */
   largoPlu: number;
   largoImporte: number;
   /** Cuántos de los dígitos del importe son centavos. Hoy: 0. */
   decimalesImporte: number;
-  /** El "PLU" que la balanza usa para el total de la operación. */
-  pluTotal: number;
 };
 
 export const FORMATO_POR_DEFECTO: FormatoBalanza = {
-  prefijo: "20",
+  prefijosLinea: ["20"],
+  prefijoTotal: "22",
   largoPlu: 4,
   largoImporte: 6,
   decimalesImporte: 0,
-  pluTotal: 2000,
 };
 
 export type Etiqueta =
@@ -83,10 +99,13 @@ export function leerEtiqueta(
     };
   }
 
-  if (!codigo.startsWith(formato.prefijo)) {
+  const esTotal = codigo.startsWith(formato.prefijoTotal);
+  const prefijoLinea = formato.prefijosLinea.find((p) => codigo.startsWith(p));
+
+  if (!esTotal && !prefijoLinea) {
     return {
       tipo: "desconocido",
-      motivo: "No arranca con el prefijo de balanza: debe ser un código de fábrica.",
+      motivo: "No arranca con un prefijo de balanza: debe ser un código de fábrica.",
       codigo,
     };
   }
@@ -99,17 +118,20 @@ export function leerEtiqueta(
     };
   }
 
-  const desde = formato.prefijo.length;
-  const plu = Number(codigo.slice(desde, desde + formato.largoPlu));
-  const crudoImporte = codigo.slice(
-    desde + formato.largoPlu,
-    desde + formato.largoPlu + formato.largoImporte
-  );
-  const importe = Number(crudoImporte) / 10 ** formato.decimalesImporte;
+  /* El importe ocupa siempre los mismos lugares: los `largoImporte` dígitos
+     que están justo antes del verificador. Vale igual para la línea y para el
+     total, así que no hace falta saber qué significa el campo del medio del
+     total (en los tickets vistos es siempre 0200). */
+  const desdeImporte = 12 - formato.largoImporte;
+  const importe =
+    Number(codigo.slice(desdeImporte, 12)) / 10 ** formato.decimalesImporte;
 
-  if (plu === formato.pluTotal) {
+  if (esTotal) {
     return { tipo: "total", importe, codigo };
   }
+
+  const desdePlu = prefijoLinea!.length;
+  const plu = Number(codigo.slice(desdePlu, desdePlu + formato.largoPlu));
 
   return { tipo: "linea", plu, importe, codigo };
 }
@@ -155,7 +177,17 @@ export function importeMaximo(formato: FormatoBalanza = FORMATO_POR_DEFECTO): nu
   return (10 ** formato.largoImporte - 1) / 10 ** formato.decimalesImporte;
 }
 
-/** Arma el código que imprimiría la balanza. Se usa para probar el parser. */
+function importeEnDigitos(importe: number, formato: FormatoBalanza): string {
+  const escalado = Math.round(importe * 10 ** formato.decimalesImporte);
+  if (escalado < 0 || escalado >= 10 ** formato.largoImporte) {
+    throw new Error(
+      `El importe ${importe} no entra en ${formato.largoImporte} dígitos.`
+    );
+  }
+  return String(escalado).padStart(formato.largoImporte, "0");
+}
+
+/** Arma el código de una línea, como lo imprimiría la balanza. */
 export function armarEtiqueta(
   plu: number,
   importe: number,
@@ -166,15 +198,22 @@ export function armarEtiqueta(
       `El PLU ${plu} no entra en ${formato.largoPlu} dígitos (máximo ${pluMaximo(formato)}).`
     );
   }
-  const escalado = Math.round(importe * 10 ** formato.decimalesImporte);
-  if (escalado < 0 || escalado >= 10 ** formato.largoImporte) {
-    throw new Error(
-      `El importe ${importe} no entra en ${formato.largoImporte} dígitos.`
-    );
-  }
   const cuerpo =
-    formato.prefijo +
+    formato.prefijosLinea[0] +
     String(plu).padStart(formato.largoPlu, "0") +
-    String(escalado).padStart(formato.largoImporte, "0");
+    importeEnDigitos(importe, formato);
+  return cuerpo + digitoVerificadorEan13(cuerpo);
+}
+
+/** Arma el código del total de una operación. */
+export function armarEtiquetaTotal(
+  importe: number,
+  formato: FormatoBalanza = FORMATO_POR_DEFECTO
+): string {
+  const relleno = 12 - formato.prefijoTotal.length - formato.largoImporte;
+  const cuerpo =
+    formato.prefijoTotal +
+    "0200".slice(0, relleno).padEnd(relleno, "0") +
+    importeEnDigitos(importe, formato);
   return cuerpo + digitoVerificadorEan13(cuerpo);
 }
