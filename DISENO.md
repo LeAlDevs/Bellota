@@ -331,37 +331,93 @@ contesta a Ramos o a Mosconi según corresponda. Requiere cargar SPF/DKIM en el 
 - **Cartelería de góndola** imprimible, para que el cartel y la balanza no se peleen
 - `scale_sync_log` — qué se exportó, cuándo, a qué balanza
 
-**Sincronización.** Hay que separar dos cosas que antes estaban mezcladas en este documento:
+**Bellota es el archivo maestro.** Decisión del dueño, 07/09/2026:
 
-- **El PLU nace en la balanza.** Ya existe, y Bellota lo recibe. La carga inicial ideal es un
-  **export del catálogo de las balanzas** (vía Qendra), no una lista tipeada a mano: así los
-  números entran exactos.
-- **El precio pasa a nacer en Bellota.** De acá en adelante se carga en un solo lugar y baja
-  a las 4 balanzas. Sin esto, cada aumento se toca 5 veces y las balanzas se desalinean.
+- **El precio nace en Bellota** y de ahí baja a las 4 balanzas por archivo. Un solo lugar
+  donde se toca un aumento.
+- **El PLU nace en la balanza** para lo que ya existe: Bellota lo recibe en la carga inicial
+  (ideal: export del catálogo por Qendra, no una lista tipeada). De ahí en adelante, un
+  producto nuevo saca su PLU de Bellota y baja con el mismo archivo.
 
 `scale_sync_log` registra qué se exportó, cuándo y a qué balanza.
 
-> **A verificar antes de la fase 9:** que el PLU de un mismo producto sea idéntico en las 4
-> balanzas. Si Ramos tiene el jamón en el 412 y Mosconi en el 380, el catálogo no es uno solo
-> y hay que unificarlo antes de sincronizar precios. Se resuelve exportando las 4 y comparando.
+> **El agujero que deja este esquema, y cómo se tapa.** Entre que se cambia un precio en
+> Bellota y que el archivo llega a las balanzas hay una ventana. Adentro de esa ventana la
+> balanza cobra con el precio viejo y Bellota calcula con el nuevo: el cliente paga bien y el
+> stock se descuenta mal. **No es un caso raro: es exactamente el día del aumento.**
+>
+> Por eso un cambio de precio deja el producto marcado como **pendiente de bajar a balanza**,
+> y el Inicio muestra cuántos hay. La regla operativa es que un aumento no se considera hecho
+> hasta que el archivo se cargó en las cuatro. Mientras haya pendientes, el POS avisa al
+> escanear ese producto.
 
-### 4.11 Escaneo de etiqueta de balanza
+> **A verificar antes de la sincronización:** que el PLU de un mismo producto sea idéntico en
+> las 4 balanzas. Si Ramos tiene el jamón en el 412 y Mosconi en el 380, el catálogo no es uno
+> solo. Se resuelve exportando las 4 y comparando.
+
+### 4.11 Cómo llega cada producto a la caja
 
 Hardware: **1 PC + 2 balanzas + 1 lectora por local**, 2 locales → **4 balanzas**.
-Modelos Systel línea Cuora: **`CM30MBXUF1`** y **`CN30MTEAR`**. Las dos imprimen etiqueta
-autoadhesiva, así que el circuito de escaneo funciona en ambas.
+Modelos Systel línea Cuora: **`CM30MBXUF1`** y **`CN30MTEAR`**.
 
-Imprimen **EAN-13 de peso variable**: prefijo `20` pesable / `21` por unidad.
+**Circuito cerrado con el dueño el 07/09/2026.** Hay dos caminos y se juntan en la caja:
+
+| | Quién lo identifica | Cómo llega a la caja |
+|---|---|---|
+| **Fraccionable** (`unit_type = kg`) | PLU en la balanza | El mostrador pesa, la balanza imprime el ticket, el cliente lo lleva a la caja y el cajero lo escanea |
+| **No fraccionable** (`unit_type = unidad`, envasado) | EAN de fábrica | El cajero escanea el paquete directo, sin pasar por balanza |
+
+**La venta se arma en Bellota**, mezclando los dos. El total del ticket de balanza **no es**
+el total de la venta: el vino que el cliente agarró de la góndola se suma después.
+
+> **Un tercer caso que no entra en la tabla: los elaborados.** Una picada armada no tiene EAN
+> de fábrica ni pasa necesariamente por balanza. Tres salidas, en orden de preferencia:
+> (1) si se pesa y se envasa, la balanza le pone etiqueta como a cualquier fraccionable;
+> (2) si tiene precio fijo, se busca por nombre en el POS — es un producto solo y prominente;
+> (3) etiqueta propia, que hoy no se puede porque no hay impresora.
+
+#### El formato de la etiqueta
+
+Verificado contra dos tickets reales el 07/09/2026 (parser en `lib/balanza.ts`,
+`npm run check:balanza`):
 
 ```
-2 0 P P P P P W W W W W C
-    └─ PLU ─┘ └─ peso ─┘ └ verificador
+2 0 │ P P P P │ I I I I I I │ C
+      └ PLU ─┘ └─ importe ─┘ └ verificador
+       4 díg.    6 díg., en pesos
 ```
 
-El parser vive en Bellota y **es configurable** (posiciones y largo de cada tramo), porque
-hay dos modelos y se configuran a mano. Las 4 se configuran con el **mismo formato y con
-peso embebido, no importe**: si va el importe, el POS tiene que dividir por el precio actual,
-y cualquier cambio de precio entre el pesado y el cobro descuadra el stock.
+- **El PLU ocupa 4 dígitos → el máximo es 9999.** El alta de productos lo valida.
+- **El PLU `2000` está reservado**: es el que usa la balanza para el código del total de la
+  operación. Un producto con ese PLU haría que el total de un ticket se escanee como ese
+  producto.
+- **La balanza embebe el IMPORTE, no el peso.** Los kilos se reconstruyen:
+  `kg = importe ÷ precio`. Funciona exacto mientras el precio de la balanza sea el de Bellota
+  — ver el agujero de la ventana de sincronización en §4.10.
+
+> **Lo que se pierde por embeber importe en vez de peso.** Con el importe, una diferencia de
+> precio es **indetectable**: sale un peso plausible pero equivocado y nada lo marca. Con el
+> peso embebido, Bellota podría comparar `kg × precio` contra el importe impreso y cazar la
+> diferencia en la primera venta. **Si Qendra deja cambiarlo a peso variable, conviene
+> hacerlo** — es configuración, no código, y convierte un error silencioso en uno visible.
+
+#### El código del total
+
+El ticket trae un código por línea **y uno del total** (PLU `2000`). El del total lleva plata
+pero no lleva productos: **no sirve para cobrar**, sirve para verificar que no quedó ninguna
+línea sin escanear.
+
+Orden en el mostrador: **las líneas de arriba hacia abajo y el total al final** — es el
+barrido natural con el papel en la mano, y deja el control justo antes de cobrar. Bellota
+acepta el total en cualquier posición igual.
+
+Los códigos de línea **no traen el número de operación** (el ticket lo imprime en letras pero
+no lo codifica), así que el agrupamiento es por secuencia: todo lo escaneado desde el último
+código de total pertenece al ticket en curso.
+
+Si al cobrar quedaron líneas de balanza sin contrastar contra un total, **se avisa pero no se
+bloquea**: el papel se arruga y la impresión se borronea, y frenar una venta con cola atrás es
+peor que el riesgo que cubre. Queda registrado que se cobró sin verificar.
 
 > Systel publica un **protocolo RS232** (peso en vivo) → camino futuro para una balanza de
 > mostrador conectada directo al POS, sin etiqueta intermedia.
