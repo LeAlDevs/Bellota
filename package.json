@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3006",
     "lint": "eslint",
-    "check:db": "node scripts/check-migrations.mjs"
+    "check:db": "node scripts/check-migrations.mjs",
+    "check:balanza": "node --experimental-strip-types scripts/check-balanza.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

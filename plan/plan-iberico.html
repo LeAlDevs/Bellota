@@ -1,0 +1,826 @@
+<title>Plan Ibérico 2026</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Geist:wght@400;500;600;700&display=swap">
+
+<style>
+  :root {
+    --canvas: #f4f1ec;
+    --card: #ffffff;
+    --subtle: #fbf9f5;
+    --ink: #1f1610;
+    --muted: #7a6b5d;
+    --faint: #a2937f;
+    --line: #e7e0d6;
+    --line-soft: #f0ebe3;
+
+    --accent: #7b4a17;
+    --accent-soft: #f5eadc;
+    --tostado: #c99263;
+    --espresso: #221609;
+    --espresso-fg: #f5efe7;
+    --espresso-muted: #a8917a;
+
+    --ok: #2f6b3f;
+    --ok-bg: #e7f1e9;
+    --warn: #9a5b12;
+    --warn-bg: #fbeedc;
+    --danger: #a93226;
+    --danger-bg: #fbeae7;
+
+    --shadow: 0 1px 2px rgba(31, 22, 16, .05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas: #17120d;
+      --card: #211a13;
+      --subtle: #1c1610;
+      --ink: #f0e7db;
+      --muted: #a8967f;
+      --faint: #857462;
+      --line: #322718;
+      --line-soft: #291f15;
+
+      --accent: #d8a06f;
+      --accent-soft: #33260f;
+      --tostado: #c99263;
+      --espresso: #0f0b07;
+      --espresso-fg: #f5efe7;
+      --espresso-muted: #9c8a74;
+
+      --ok: #7ecf9e;
+      --ok-bg: #172a1e;
+      --warn: #e8b06a;
+      --warn-bg: #2e2211;
+      --danger: #e79184;
+      --danger-bg: #331a17;
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --canvas: #17120d;
+    --card: #211a13;
+    --subtle: #1c1610;
+    --ink: #f0e7db;
+    --muted: #a8967f;
+    --faint: #857462;
+    --line: #322718;
+    --line-soft: #291f15;
+
+    --accent: #d8a06f;
+    --accent-soft: #33260f;
+    --tostado: #c99263;
+    --espresso: #0f0b07;
+    --espresso-fg: #f5efe7;
+    --espresso-muted: #9c8a74;
+
+    --ok: #7ecf9e;
+    --ok-bg: #172a1e;
+    --warn: #e8b06a;
+    --warn-bg: #2e2211;
+    --danger: #e79184;
+    --danger-bg: #331a17;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: "Geist", system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ── Encabezado ─────────────────────────────────────── */
+  .top {
+    background: var(--espresso);
+    color: var(--espresso-fg);
+    margin-bottom: 48px;
+  }
+  .top-inner {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 56px 24px 52px;
+  }
+  .eyebrow {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--tostado);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-size: clamp(34px, 5.5vw, 52px);
+    line-height: 1.06;
+    letter-spacing: -.035em;
+    font-weight: 600;
+    margin: 0 0 20px;
+    text-wrap: balance;
+    max-width: 20ch;
+  }
+  .top p {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--espresso-muted);
+    font-size: 16.5px;
+    line-height: 1.65;
+  }
+  .top-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin-top: 34px;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255, 255, 255, .1);
+  }
+  .top-meta div { display: flex; flex-direction: column; gap: 3px; }
+  .top-meta dt {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--espresso-muted);
+  }
+  .top-meta dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--espresso-fg);
+  }
+
+  /* ── Estructura ─────────────────────────────────────── */
+  .layout { display: grid; grid-template-columns: 1fr; gap: 0; }
+  @media (min-width: 1000px) {
+    .layout { grid-template-columns: 194px minmax(0, 1fr); gap: 56px; align-items: start; }
+    nav.toc { position: sticky; top: 32px; }
+  }
+
+  nav.toc { font-size: 13.5px; margin-bottom: 40px; }
+  nav.toc p {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 12px;
+  }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  nav.toc a {
+    display: block;
+    padding: 5px 10px;
+    border-radius: 7px;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+  nav.toc a:hover { color: var(--ink); background: var(--card); }
+  nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  section { margin-bottom: 68px; scroll-margin-top: 24px; }
+
+  h2 {
+    font-size: 27px;
+    letter-spacing: -.025em;
+    font-weight: 600;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .sub {
+    color: var(--muted);
+    margin: 0 0 30px;
+    max-width: 66ch;
+    font-size: 15.5px;
+  }
+  h3 {
+    font-size: 17.5px;
+    letter-spacing: -.015em;
+    font-weight: 600;
+    margin: 40px 0 12px;
+    text-wrap: balance;
+  }
+  h4 {
+    font-size: 14.5px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  p { max-width: 68ch; }
+  strong { font-weight: 600; }
+
+  .lead {
+    font-size: 17px;
+    line-height: 1.6;
+  }
+
+  /* ── Piezas ─────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 22px 24px;
+    box-shadow: var(--shadow);
+  }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+
+  .principio { display: flex; flex-direction: column; gap: 7px; }
+  .principio h4 { margin: 0; font-size: 15.5px; letter-spacing: -.01em; }
+  .principio p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.55; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .tag.ok { background: var(--ok-bg); color: var(--ok); }
+  .tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .tag.danger { background: var(--danger-bg); color: var(--danger); }
+  .tag.plain { background: var(--subtle); color: var(--muted); }
+
+  .scroller { overflow-x: auto; border-radius: 13px; border: 1px solid var(--line); background: var(--card); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
+  thead th {
+    text-align: left;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 500;
+    padding: 11px 16px;
+    background: var(--subtle);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td .hint { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+
+  .blank {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    background: var(--warn-bg);
+    color: var(--warn);
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Cadencia */
+  .ritmo { display: flex; flex-direction: column; gap: 0; }
+  .ritmo-fila {
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    gap: 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+  }
+  .ritmo-fila:first-child { border-top: 0; padding-top: 0; }
+  .ritmo-cuando {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding-top: 2px;
+  }
+  .ritmo-cuando span { display: block; color: var(--faint); text-transform: none; letter-spacing: 0; margin-top: 3px; font-size: 11.5px; }
+  .ritmo ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+  .ritmo li { font-size: 14.5px; }
+  .ritmo li b { font-weight: 600; }
+  @media (max-width: 620px) {
+    .ritmo-fila { grid-template-columns: 1fr; gap: 10px; }
+  }
+
+  /* Fórmula */
+  .formula {
+    background: var(--espresso);
+    color: var(--espresso-fg);
+    border-radius: 13px;
+    padding: 24px;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 2.1;
+    overflow-x: auto;
+  }
+  .formula .op { color: var(--tostado); }
+  .formula .res { color: var(--espresso-fg); font-weight: 600; }
+  .formula .hueco {
+    background: rgba(201, 146, 99, .18);
+    color: var(--tostado);
+    padding: 2px 10px;
+    border-radius: 4px;
+  }
+  .formula small { display: block; font-family: "Geist", sans-serif; color: var(--espresso-muted); font-size: 13px; line-height: 1.5; margin-top: 14px; }
+
+  /* Aviso */
+  .aviso {
+    border-left: 3px solid var(--warn);
+    background: var(--warn-bg);
+    border-radius: 0 11px 11px 0;
+    padding: 18px 22px;
+  }
+  .aviso h4 { color: var(--warn); }
+  .aviso p { margin: 0; font-size: 14.5px; color: var(--ink); }
+  .aviso p + p { margin-top: 8px; }
+
+  /* Calendario */
+  .meses { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .mes { border: 1px solid var(--line); border-radius: 10px; padding: 13px 15px; background: var(--card); }
+  .mes b { display: block; font-size: 13.5px; margin-bottom: 3px; }
+  .mes span { font-size: 12.5px; color: var(--muted); line-height: 1.45; display: block; }
+  .mes.pico { border-color: var(--accent); background: var(--accent-soft); }
+  .mes.pico b { color: var(--accent); }
+
+  /* Plan 90 días */
+  .tramo { border-top: 1px solid var(--line); padding: 26px 0; display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 22px; }
+  .tramo:first-of-type { border-top: 0; }
+  .tramo-num {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .tramo-num span { display: block; font-size: 26px; letter-spacing: -.02em; color: var(--ink); margin-top: 4px; text-transform: none; }
+  .tramo ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .tramo li { font-size: 14.5px; }
+  @media (max-width: 620px) { .tramo { grid-template-columns: 1fr; gap: 12px; } }
+
+  ul.limpia { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  ul.limpia li { display: flex; gap: 11px; font-size: 14.5px; align-items: flex-start; }
+  ul.limpia li::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 2px;
+    background: var(--tostado);
+    flex: none;
+    margin-top: 9px;
+  }
+
+  .cierre {
+    background: var(--accent-soft);
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    padding: 26px 28px;
+  }
+  .cierre h3 { margin-top: 0; }
+
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <p class="eyebrow">Distribuidora Ibérico · Ramos y Mosconi</p>
+    <h1>Ordenar la casa, y recién después crecer.</h1>
+    <p>Un plan de trabajo para los próximos noventa días: qué mirar todas las semanas, qué hacer con la plata, qué contar afuera y qué proyectos abrir. Cada decisión de acá adentro se apoya en un número que el sistema va a dar — no en una corazonada.</p>
+    <dl class="top-meta">
+      <div><dt>Locales</dt><dd>Ramos · Mosconi</dd></div>
+      <div><dt>Condición fiscal</dt><dd>Monotributo</dd></div>
+      <div><dt>Sistema</dt><dd>Bellota</dd></div>
+      <div><dt>Horizonte</dt><dd>90 días</dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="layout">
+
+    <nav class="toc" aria-label="Secciones">
+      <p>Contenido</p>
+      <ol>
+        <li><a href="#principios">Principios</a></li>
+        <li><a href="#administracion">Administración</a></li>
+        <li><a href="#comercial">Comercial</a></li>
+        <li><a href="#proyectos">Proyectos</a></li>
+        <li><a href="#noventa">Los 90 días</a></li>
+        <li><a href="#faltan">Lo que falta</a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- ── PRINCIPIOS ────────────────────────────── -->
+      <section id="principios">
+        <h2>Cuatro principios</h2>
+        <p class="sub">Son los que resuelven las discusiones cuando aparece una decisión que el plan no previó.</p>
+
+        <div class="grid g2">
+          <div class="card principio">
+            <h4>La venta no es el número</h4>
+            <p>Un local puede vender más que el otro y dejar menos. El número que manda es <strong>margen bruto menos gastos del local</strong>. Todo lo demás es tránsito.</p>
+          </div>
+          <div class="card principio">
+            <h4>Lo que no se mide, se va solo</h4>
+            <p>La merma en fiambrería no se roba: se evapora en el vencimiento, en el hueso, en la punta que se tira. Si no tiene motivo cargado, no existe — y si no existe, no se corrige.</p>
+          </div>
+          <div class="card principio">
+            <h4>El precio se carga una vez</h4>
+            <p>Hoy un aumento se toca en cinco lugares: cuatro balanzas y un cartel. Cada lugar de más es una chance de que dos locales cobren distinto lo mismo.</p>
+          </div>
+          <div class="card principio">
+            <h4>Primero orden, después escala</h4>
+            <p>Sumar canales sobre un negocio que no sabe su costo multiplica el desorden. Instagram y delivery llegan cuando el margen por producto ya se lee de un vistazo.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── ADMINISTRACIÓN ────────────────────────── -->
+      <section id="administracion">
+        <h2>Administración</h2>
+        <p class="sub">Lo administrativo no es una carpeta: es un ritmo. Esto define qué se mira, cada cuánto, y quién.</p>
+
+        <h3>El ritmo de gestión</h3>
+        <div class="card ritmo">
+          <div class="ritmo-fila">
+            <div class="ritmo-cuando">Todos los días<span>el cajero, al cerrar</span></div>
+            <ul>
+              <li><b>Cerrar la caja del turno.</b> Declarar lo que hay en el cajón y ver la diferencia contra lo esperado. Una caja que no se cierra el mismo día ya no se cierra nunca.</li>
+              <li><b>Cargar la merma del día</b> con su motivo, antes de irse. No al otro día, no el viernes.</li>
+              <li><b>Anotar los gastos que salieron del cajón</b>, aunque sean $2.000 de bolsas.</li>
+            </ul>
+          </div>
+          <div class="ritmo-fila">
+            <div class="ritmo-cuando">Cada lunes<span>vos, 30 minutos</span></div>
+            <ul>
+              <li><b>Diferencias de caja de la semana.</b> Una diferencia chica y constante en el mismo turno no es distracción.</li>
+              <li><b>Merma por motivo.</b> Si manda "vencido", el problema es cuánto se compra. Si manda "mal estado", es la heladera o el proveedor.</li>
+              <li><b>Productos bajo el mínimo</b> y armado del pedido a proveedores.</li>
+              <li><b>Los diez que más dejaron y los diez que menos.</b> Ahí se decide qué se empuja en el mostrador.</li>
+            </ul>
+          </div>
+          <div class="ritmo-fila">
+            <div class="ritmo-cuando">Cada mes<span>vos, 2 horas</span></div>
+            <ul>
+              <li><b>Resultado por local:</b> ventas − costo de lo vendido − gastos del local.</li>
+              <li><b>Revisión de precios</b> contra el costo promedio ponderado real, no contra el del mes pasado.</li>
+              <li><b>Deuda con proveedores</b> y previsión de pagos.</li>
+              <li><b>Facturación fiscal acumulada</b> contra el tope de la categoría de monotributo.</li>
+              <li><b>Retiro del dueño:</b> un monto fijo, decidido antes, no lo que sobró.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>Qué plata entra y qué plata sale</h3>
+        <p>La primera trampa de un negocio de mostrador es confundir la caja con la ganancia. Entra plata todos los días, y eso da la sensación de que va bien aunque el margen no alcance para los fijos.</p>
+
+        <div class="grid g2" style="margin-top:16px">
+          <div class="card">
+            <span class="tag ok">Entra</span>
+            <ul class="limpia" style="margin-top:14px">
+              <li><strong>Ventas del mostrador</strong>, por local y por medio de pago. El efectivo entra al cajón; la tarjeta y el QR van a la cuenta con su comisión y su demora.</li>
+              <li><strong>Ventas por WhatsApp y delivery</strong>, que hay que poder separar para saber si el canal se paga solo.</li>
+              <li><strong>Venta a bares y restaurantes</strong>, si se abre ese frente. Otro precio, otro plazo de cobro.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <span class="tag danger">Sale</span>
+            <ul class="limpia" style="margin-top:14px">
+              <li><strong>Mercadería.</strong> Es el gasto más grande y el único que se mueve con la venta.</li>
+              <li><strong>Fijos:</strong> alquiler de los dos locales, sueldos y cargas, luz y gas — que en fiambrería no es menor, las heladeras no se apagan.</li>
+              <li><strong>Variables:</strong> fletes, bolsas, film, bandejas, limpieza, mantenimiento de heladeras y balanzas.</li>
+              <li><strong>Impuestos:</strong> monotributo, ingresos brutos, tasa municipal, bromatología.</li>
+              <li><strong>Comisiones</strong> de tarjeta, QR y plataformas de delivery.</li>
+              <li><strong>Retiro del dueño.</strong> Va acá, no en "lo que sobra".</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>El tablero: ocho números y nada más</h3>
+        <p class="sub" style="margin-bottom:16px">Un tablero de veinte indicadores no se mira. Estos ocho alcanzan, y todos salen del sistema sin cargar nada aparte.</p>
+
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Qué te dice</th>
+                <th>Dónde se ve</th>
+                <th class="num">Meta</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Margen bruto %</strong><span class="hint">(venta − costo de lo vendido) ÷ venta</span></td>
+                <td>Si el precio le gana al costo. Es el número madre: todo lo demás se paga con esto.</td>
+                <td>Panel de ventas → Reportes</td>
+                <td class="num"><span class="blank">a definir</span></td>
+              </tr>
+              <tr>
+                <td><strong>Merma %</strong><span class="hint">costo de la merma ÷ costo de lo vendido</span></td>
+                <td>Cuánta plata se pierde antes de vender. En fiambrería es el agujero silencioso.</td>
+                <td>Stock → Movimientos</td>
+                <td class="num"><span class="blank">a definir</span></td>
+              </tr>
+              <tr>
+                <td><strong>Ticket promedio</strong></td>
+                <td>Cuánto se lleva cada cliente. Sube con picadas y bebidas, no con más gente.</td>
+                <td>Inicio</td>
+                <td class="num"><span class="blank">a definir</span></td>
+              </tr>
+              <tr>
+                <td><strong>Días de stock</strong><span class="hint">stock valorizado ÷ costo vendido por día</span></td>
+                <td>Cuántos días de venta tenés parados en la heladera. Mucho es plata quieta y riesgo de vencimiento.</td>
+                <td>Stock → Existencias</td>
+                <td class="num"><span class="blank">a definir</span></td>
+              </tr>
+              <tr>
+                <td><strong>Resultado por local</strong></td>
+                <td>Si cada local se banca solo. Uno puede estar financiando al otro sin que se note.</td>
+                <td>Panel de ventas → Reportes</td>
+                <td class="num"><span class="blank">a definir</span></td>
+              </tr>
+              <tr>
+                <td><strong>Diferencia de caja</strong></td>
+                <td>Prolijidad del mostrador. Importa la constancia, no el monto.</td>
+                <td>Punto de venta → Arqueos</td>
+                <td class="num">± 0,5%</td>
+              </tr>
+              <tr>
+                <td><strong>Ventas por hora</strong></td>
+                <td>Cuándo poner gente y cuándo no. Media mañana con dos personas al pedo es sueldo tirado.</td>
+                <td>Panel de ventas → Reportes</td>
+                <td class="num">—</td>
+              </tr>
+              <tr>
+                <td><strong>Productos sin rotación</strong></td>
+                <td>Lo que ocupa heladera y no se vende. Cada uno es espacio que le falta a otro.</td>
+                <td>Panel de ventas → Reportes</td>
+                <td class="num">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Cuánto hay que vender para no perder</h3>
+        <p>Es la cuenta más importante y la que casi nadie hace. Se completa una vez, se revisa cada tres meses, y de ahí sale la meta diaria de cada local.</p>
+
+        <div class="formula" style="margin-top:16px">
+          <div><span class="hueco">gastos fijos del mes</span> <span class="op">÷</span> <span class="hueco">margen bruto %</span> <span class="op">=</span> <span class="res">venta mensual para empatar</span></div>
+          <div><span class="res">venta mensual para empatar</span> <span class="op">÷</span> <span class="hueco">días abiertos</span> <span class="op">=</span> <span class="res">venta diaria mínima</span></div>
+          <small>Ejemplo de cómo se lee, con números inventados: si los fijos de un local son $6.000.000 y el margen bruto es 30%, hay que vender $20.000.000 en el mes solo para empatar. Sobre 26 días abiertos, son $769.000 por día. Ese es el número que el encargado tiene que conocer de memoria.</small>
+        </div>
+
+        <div class="aviso" style="margin-top:26px">
+          <h4>El techo del monotributo hay que mirarlo antes de chocarlo</h4>
+          <p>El monotributo tiene un tope de facturación anual por categoría. Si el negocio crece —y el plan es que crezca—, en algún momento hay que recategorizar o pasar a Responsable Inscripto, y ese salto cambia los precios, el margen y la manera de facturar. No es algo para descubrir cuando ya pasó.</p>
+          <p>Bellota separa la venta fiscal de la no fiscal, así que la facturación acumulada del año se puede mirar todos los meses. <strong>Verificá el tope vigente de tu categoría con tu contador</strong> y anotalo como una línea más del tablero mensual.</p>
+        </div>
+
+        <h3>Tres reglas de plata que conviene fijar ahora</h3>
+        <div class="grid g3" style="margin-top:14px">
+          <div class="card principio">
+            <h4>Retiro fijo</h4>
+            <p>Un monto mensual decidido de antemano. Si el dueño saca "lo que hay", el negocio nunca tiene caja y nunca se sabe si gana.</p>
+          </div>
+          <div class="card principio">
+            <h4>Fondo de heladera</h4>
+            <p>Un porcentaje del resultado, aparte. Una heladera que se rompe un viernes de diciembre no espera a que haya plata.</p>
+          </div>
+          <div class="card principio">
+            <h4>Nada de fiado</h4>
+            <p>Ya está decidido y conviene sostenerlo. Fiar en el mostrador es prestar plata sin contrato y sin fecha.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── COMERCIAL ─────────────────────────────── -->
+      <section id="comercial">
+        <h2>Comercial</h2>
+        <p class="sub">Una fiambrería de barrio compite por cercanía y por confianza, no por precio. Todo lo de abajo empuja esas dos cosas.</p>
+
+        <h3>WhatsApp: el canal que ya tenés y no estás usando</h3>
+        <div class="aviso">
+          <h4>WhatsApp Web no es la herramienta</h4>
+          <p>WhatsApp Web es solo un espejo del teléfono: si el celular se queda sin batería, se cae la atención. Lo que necesitás es <strong>WhatsApp Business</strong>, que es gratis, tiene su propia app y sirve para trabajar: catálogo con fotos y precios, respuestas rápidas para las preguntas de siempre, etiquetas para separar pedidos, mensaje de ausencia fuera de horario y horario de atención publicado.</p>
+          <p>Un número por local, cada uno vinculado a hasta cuatro dispositivos más, alcanza para que atiendan dos personas sin pisarse. Recién si el volumen crece mucho tiene sentido pensar en algo más grande.</p>
+        </div>
+
+        <ul class="limpia" style="margin-top:20px">
+          <li><strong>Un número por local, publicado en todos lados.</strong> Vidriera, Instagram, Google Maps, el ticket por mail.</li>
+          <li><strong>Catálogo cargado con los treinta productos que más se venden</strong>, con foto decente y precio. El catálogo desactualizado es peor que no tenerlo.</li>
+          <li><strong>Respuestas rápidas</strong> para: horarios, medios de pago, zona de envío, "¿tenés tal cosa?".</li>
+          <li><strong>Regla de oro:</strong> se contesta en menos de 15 minutos en horario de local. Un pedido que espera dos horas se compra en otro lado.</li>
+        </ul>
+
+        <h3>Instagram: mostrar el producto, no la marca</h3>
+        <p>La gente no sigue a una fiambrería por el logo. La sigue porque le da hambre. El contenido que funciona es el producto en primer plano y bien iluminado, no las placas de diseño.</p>
+
+        <div class="scroller" style="margin-top:16px">
+          <table>
+            <thead>
+              <tr><th>Qué publicar</th><th>Por qué funciona</th><th>Cada cuánto</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>El corte en primer plano</strong><span class="hint">la feta cayendo, el cuchillo entrando en el queso</span></td><td>Es lo único que no puede mostrar un supermercado. Vende apetito.</td><td>2 por semana</td></tr>
+              <tr><td><strong>La picada armada</strong><span class="hint">tabla completa, con precio visible</span></td><td>Es el producto de mayor margen y el que más se comparte.</td><td>1 por semana</td></tr>
+              <tr><td><strong>Llegó mercadería</strong><span class="hint">"llegó el crudo estacionado"</span></td><td>Genera urgencia real y trae gente el mismo día.</td><td>cuando pasa</td></tr>
+              <tr><td><strong>Detrás del mostrador</strong><span class="hint">el despostado, quién atiende, el local abriendo</span></td><td>Construye la confianza que después se cobra en el precio.</td><td>1 por semana</td></tr>
+              <tr><td><strong>Historias todos los días</strong><span class="hint">lo del día, una recomendación, una encuesta</span></td><td>Sostiene el alcance sin exigir producción.</td><td>diario</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin-top:18px"><strong>Lo que no hay que publicar:</strong> placas de "feliz día del amigo" sin producto, frases motivacionales, imágenes de banco de fotos con jamones que no son los tuyos. Nadie compra fiambre por una placa.</p>
+
+        <h3>Pauta publicitaria: chica, cerca y medida</h3>
+        <p>El error clásico es pagar por seguidores. Un seguidor de otra provincia no te compra nunca. La pauta de un negocio de barrio se hace así:</p>
+
+        <div class="grid g2" style="margin-top:16px">
+          <div class="card">
+            <h4>Cómo configurarla</h4>
+            <ul class="limpia" style="margin-top:12px">
+              <li><strong>Objetivo: mensajes a WhatsApp</strong> o visitas al local. Nunca "interacción" ni "seguidores".</li>
+              <li><strong>Radio de 2 a 3 km</strong> alrededor de cada local, con campañas separadas para poder comparar Ramos contra Mosconi.</li>
+              <li><strong>Presupuesto de prueba durante un mes</strong>, el mismo en los dos locales, para tener con qué comparar.</li>
+              <li><strong>Un aviso por vez</strong>, con la picada o el producto estrella y el precio a la vista.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Cómo saber si sirvió</h4>
+            <ul class="limpia" style="margin-top:12px">
+              <li><strong>Un código o frase en el aviso</strong> ("decí que viste el aviso") para poder contar cuántos llegaron por ahí.</li>
+              <li><strong>Comparar el ticket promedio y la cantidad de tickets</strong> del local con pauta contra el mes anterior.</li>
+              <li><strong>La cuenta que importa:</strong> si gastaste $100.000 y trajo 40 clientes nuevos con ticket promedio de $20.000 y margen 30%, dejaron $240.000 de margen. Sirvió.</li>
+              <li><strong>Si no se puede medir, se corta.</strong> Un mes sin números es un mes regalado.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>Delivery: hacé las cuentas antes de firmar</h3>
+        <div class="aviso">
+          <h4>PedidosYa con el catálogo general te puede dejar vendiendo a pérdida</h4>
+          <p>Las plataformas de delivery cobran una comisión que suele estar entre el 20% y el 30% de la venta. Si tu margen bruto es del orden del 30% y entregás al mismo precio del mostrador, <strong>la comisión se lleva casi todo el margen</strong> y encima ponés la mercadería, el envase y el trabajo. Cada pedido te deja peor que no venderlo.</p>
+          <p>No significa no entrar. Significa entrar de otra manera: <strong>precio diferenciado</strong> en la plataforma —el precio de mostrador más la comisión— o entrar <strong>solo con productos de margen alto</strong>, como picadas armadas y combos, donde el número aguanta. Antes de firmar, pedí la comisión exacta por escrito y hacé la cuenta con tu margen real, que Bellota te va a dar por producto.</p>
+        </div>
+
+        <p style="margin-top:20px"><strong>El delivery propio por WhatsApp es más barato y es tuyo.</strong> Zona chica (las diez o quince cuadras a la redonda), monto mínimo de pedido, cargo de envío fijo, y horario acotado para no romper el mostrador. El cliente queda en tu base, no en la de la plataforma.</p>
+
+        <h3>Los clientes que ya tenés</h3>
+        <p>Es el activo más barato y el más ignorado. Cada venta con mail o teléfono cargado en el punto de venta suma a una base que después sirve para avisar cuando llegó mercadería, mandar el precio de las picadas antes de un fin de semana largo, y recuperar al que hace dos meses no viene.</p>
+        <ul class="limpia" style="margin-top:14px">
+          <li><strong>Pedir el mail al cobrar</strong>, sin insistir, ofreciendo el ticket por correo. Es voluntario y suma solo.</li>
+          <li><strong>Un mensaje por mes como máximo.</strong> Más que eso, molesta y te bloquean.</li>
+          <li><strong>Avisar antes de los picos</strong>, no durante. La picada de Navidad se encarga el 20, no el 24.</li>
+        </ul>
+
+        <h3>El calendario que manda</h3>
+        <p class="sub" style="margin-bottom:14px">En este rubro la demanda no es pareja. Los picos se preparan con tres semanas de anticipación: mercadería, personal y aviso a los clientes.</p>
+        <div class="meses">
+          <div class="mes"><b>Marzo–mayo</b><span>Temporada baja. Momento de ordenar, no de invertir.</span></div>
+          <div class="mes pico"><b>Junio</b><span>Día del Padre. Tablas de regalo.</span></div>
+          <div class="mes pico"><b>20 de julio</b><span>Día del Amigo. El pico de picadas del año.</span></div>
+          <div class="mes"><b>Agosto</b><span>Mes flojo. Promos de días de semana.</span></div>
+          <div class="mes pico"><b>Octubre</b><span>Día de la Madre.</span></div>
+          <div class="mes"><b>Noviembre</b><span>Se arma la mercadería de fin de año.</span></div>
+          <div class="mes pico"><b>Diciembre</b><span>Navidad y Año Nuevo. El mes que hace el año.</span></div>
+          <div class="mes"><b>Todo el año</b><span>Fines de semana largos y partidos importantes.</span></div>
+        </div>
+      </section>
+
+      <!-- ── PROYECTOS ─────────────────────────────── -->
+      <section id="proyectos">
+        <h2>Proyectos</h2>
+        <p class="sub">Ordenados por lo que dejan contra lo que cuesta arrancarlos. La recomendación es abrir de a uno, y no abrir el siguiente hasta que el anterior tenga números.</p>
+
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>Proyecto</th>
+                <th>Por qué</th>
+                <th>Qué necesita</th>
+                <th>Cuándo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Picadas armadas</strong><span class="hint">tres tamaños con precio cerrado</span></td>
+                <td>Es el producto de mayor margen del rubro y el que más sube el ticket. Además convierte la punta y el recorte —que hoy son merma— en producto vendible.</td>
+                <td>Definir tres combinaciones fijas, sacarles buenas fotos y cargarlas como producto elaborado con su receta.</td>
+                <td><span class="tag">Ahora</span></td>
+              </tr>
+              <tr>
+                <td><strong>Bebidas</strong><span class="hint">vino, cerveza, gaseosa</span></td>
+                <td>El acompañamiento natural de la picada. Sube el ticket sin sumar trabajo de mostrador y no tiene merma por vencimiento corto.</td>
+                <td>Espacio de góndola, uno o dos proveedores, y decidir si va heladera de bebidas.</td>
+                <td><span class="tag">Ahora</span></td>
+              </tr>
+              <tr>
+                <td><strong>Tabla de regalo</strong><span class="hint">presentación para fechas</span></td>
+                <td>Margen alto y estacional. Se vende sola en junio, julio, octubre y diciembre.</td>
+                <td>Packaging lindo y una foto por fecha. Es la misma picada mejor presentada.</td>
+                <td><span class="tag warn">Antes de junio</span></td>
+              </tr>
+              <tr>
+                <td><strong>Quesos y conservas de autor</strong></td>
+                <td>Diferencia el local del supermercado y sube el margen promedio. Es lo que justifica que alguien cruce el barrio.</td>
+                <td>Buscar dos o tres proveedores chicos y probar con poco volumen.</td>
+                <td><span class="tag plain">3 a 6 meses</span></td>
+              </tr>
+              <tr>
+                <td><strong>Venta a bares y restaurantes</strong></td>
+                <td>Volumen estable y previsible, que llena las horas muertas del mostrador.</td>
+                <td>Lista de precios mayorista aparte, y aceptar cobrar a plazo. Ojo: eso es fiado con otro nombre, y necesita reglas antes de empezar.</td>
+                <td><span class="tag plain">6 meses</span></td>
+              </tr>
+              <tr>
+                <td><strong>Catering de eventos</strong></td>
+                <td>Ticket muy alto por operación.</td>
+                <td>Capacidad de producción y logística que hoy no está. Es un negocio distinto, no una extensión.</td>
+                <td><span class="tag plain">Más adelante</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Por qué las picadas van primero</h3>
+        <p>No es solo el margen. Una picada armada usa las puntas, los recortes y el queso que quedó chico para la feteadora — lo que hoy se tira o se vende barato. El mismo kilo de mercadería vale más si sale en tabla que si sale al peso. Y como se arma antes, tiene su propio vencimiento y su propio costo, que el sistema ya sabe calcular.</p>
+        <p><strong>La forma de arrancar:</strong> tres tamaños con precio cerrado (para dos, para cuatro, para seis), la misma combinación siempre, y armadas a la mañana, no a pedido. Si cada picada es distinta, no hay costo, no hay foto que sirva y no hay velocidad de mostrador.</p>
+      </section>
+
+      <!-- ── 90 DÍAS ───────────────────────────────── -->
+      <section id="noventa">
+        <h2>Los primeros 90 días</h2>
+        <p class="sub">En este orden, y no en otro: cada tramo se apoya en lo que dejó el anterior. Poner Instagram antes de saber el costo es hacer publicidad de un margen que no conocés.</p>
+
+        <div class="tramo">
+          <div class="tramo-num">Días 1 a 30<span>Cargar la verdad</span></div>
+          <ul>
+            <li>Juntar de las balanzas la <strong>lista completa de productos con PLU y precio</strong>, de los dos locales.</li>
+            <li><strong>Verificar que el mismo producto tenga el mismo PLU en las cuatro balanzas.</strong> Si no coinciden, unificarlo ahora: después cuesta el triple.</li>
+            <li>Importar el catálogo a Bellota y hacer el <strong>primer conteo físico</strong> de los dos locales.</li>
+            <li>Cargar los proveedores y empezar a <strong>registrar cada recepción con el peso real</strong>. Sin esto no hay costo, y sin costo no hay margen.</li>
+            <li>Arrancar el <strong>cierre de caja diario</strong>. Es el hábito más difícil de instalar y el que más ordena.</li>
+          </ul>
+        </div>
+
+        <div class="tramo">
+          <div class="tramo-num">Días 31 a 60<span>Leer los números</span></div>
+          <ul>
+            <li>Primer <strong>mes cerrado con datos reales</strong>: margen por producto, merma por motivo, resultado por local.</li>
+            <li><strong>Corregir precios</strong> donde el margen quedó por debajo de lo que debería.</li>
+            <li>Completar el <strong>punto de equilibrio</strong> de cada local y decirle la meta diaria al encargado.</li>
+            <li>Lanzar las <strong>picadas en tres tamaños</strong> y sumar bebidas.</li>
+            <li>Poner en marcha <strong>WhatsApp Business</strong> en los dos locales, con catálogo y respuestas rápidas.</li>
+          </ul>
+        </div>
+
+        <div class="tramo">
+          <div class="tramo-num">Días 61 a 90<span>Salir a buscar</span></div>
+          <ul>
+            <li><strong>Instagram con ritmo sostenido</strong>: tres publicaciones por semana e historias todos los días.</li>
+            <li><strong>Primera pauta</strong>, chica, con objetivo de mensajes y radio de 2 km, separada por local.</li>
+            <li><strong>Delivery propio</strong> por WhatsApp en zona acotada, con mínimo y cargo de envío.</li>
+            <li>Evaluar las plataformas <strong>con la comisión real y el margen real</strong>, no con la intuición.</li>
+            <li>Primera <strong>revisión trimestral</strong>: qué se cumplió, qué no, y qué se cambia para el trimestre que viene.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ── LO QUE FALTA ──────────────────────────── -->
+      <section id="faltan">
+        <h2>Lo que falta para cerrar el plan</h2>
+        <p class="sub">Todo lo de arriba está armado para funcionar con tus números. Estos son los que necesito para completar las metas y el punto de equilibrio de cada local.</p>
+
+        <div class="cierre">
+          <h3 style="margin-bottom:14px">Los datos</h3>
+          <ul class="limpia">
+            <li><strong>Gastos fijos mensuales de cada local:</strong> alquiler, sueldos y cargas, luz, gas, y todo lo que se paga vaya o no vaya gente.</li>
+            <li><strong>Venta promedio por día</strong> de cada local, aunque sea estimada, y cuántos días abren por mes.</li>
+            <li><strong>Cuántas personas trabajan</strong> en cada local y en qué turnos.</li>
+            <li><strong>Categoría de monotributo</strong> actual y facturación declarada del último año.</li>
+            <li><strong>Comisiones reales</strong> de tarjeta, QR y —si ya hablaron con alguna— de las plataformas de delivery.</li>
+            <li><strong>Con qué proveedores compran hoy</strong>, con qué frecuencia y si les dan cuenta corriente.</li>
+          </ul>
+          <p style="margin-top:18px; font-size:14.5px; color:var(--muted)">Con eso completo las metas del tablero, calculo el punto de equilibrio de Ramos y de Mosconi, y armamos el presupuesto del trimestre. Lo que no sepas exacto, va estimado: un número aproximado que se corrige en un mes sirve mucho más que un casillero vacío.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
