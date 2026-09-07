@@ -7,8 +7,12 @@ import { cn } from "@/lib/utils";
 export type PickerProduct = {
   id: string;
   name: string;
+  /** El de la balanza. Null en lo que no se pesa. */
   plu: number | null;
+  /** El EAN de fábrica de los envasados. */
+  barcode: string | null;
   unit_type: "kg" | "unidad";
+  price: number;
   /** Costo promedio ponderado, para mostrar cuánta plata se pierde en una merma. */
   cost: number;
   /** { store_id: cantidad } */

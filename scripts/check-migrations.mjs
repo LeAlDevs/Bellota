@@ -675,5 +675,218 @@ await paso("la compra deja movimientos de stock con motivo compra", async () => 
   return "3 movimientos (Ramos, Mosconi y la segunda compra)";
 });
 
+// ── POS y caja ────────────────────────────────────────────────────────
+let turno, efectivo, debito, jamonPos, picada;
+
+await paso("no se puede vender sin turno abierto", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Jamón cocido natural', 'kg', 12000, null, 'simple', 9000, 4, false, null, null, null, null, 1052)"
+  );
+  jamonPos = r.rows[0].id;
+  await db.query("select public.adjust_stock($1, $2, 20, 'alta_inicial')", [ramos, jamonPos]);
+
+  const items = JSON.stringify([{ product_id: jamonPos, qty: 0.5, unit_price: 12000 }]);
+  try {
+    await db.query(
+      "select * from public.create_sale($1, $2::jsonb, '[]'::jsonb)",
+      [ramos, items]
+    );
+  } catch (e) {
+    if (!/turno de caja abierto/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada con el mensaje correcto";
+  }
+  throw new Error("dejó vender con la caja cerrada");
+});
+
+await paso("abrir turno con fondo", async () => {
+  const r = await db.query("select public.open_cash_session($1, 80000) as id", [ramos]);
+  turno = r.rows[0].id;
+  return "fondo $80.000";
+});
+
+await paso("no se pueden abrir dos turnos en el mismo local", async () => {
+  try {
+    await db.query("select public.open_cash_session($1, 1000)", [ramos]);
+  } catch (e) {
+    if (!/turno abierto/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazado, bien";
+  }
+  throw new Error("abrió dos turnos");
+});
+
+await paso("preparo medios de pago y una picada de precio fijo", async () => {
+  const e = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const d = await db.query("select id from public.payment_methods where name = 'Débito'");
+  efectivo = e.rows[0].id;
+  debito = d.rows[0].id;
+  const r = await db.query(
+    "select * from public.create_product('Picada Ibérico para cuatro', 'unidad', 47000, null, 'elaborado', 27730, 2, true, 4, null, null, null, null)"
+  );
+  picada = r.rows[0].id;
+  await db.query("select public.adjust_stock($1, $2, 10, 'produccion_alta')", [ramos, picada]);
+  return "efectivo, débito y la picada";
+});
+
+let venta;
+await paso("una venta mezcla lo pesado con lo de precio fijo", async () => {
+  const items = JSON.stringify([
+    { product_id: jamonPos, qty: 0.35, unit_price: 12000, source: "etiqueta", scale_code: "2010520042005" },
+    { product_id: picada, qty: 1, unit_price: 47000, source: "busqueda" },
+  ]);
+  // 0,35 x 12000 = 4200 · picada 47000 · total 51200
+  const pagos = JSON.stringify([
+    { payment_method_id: efectivo, amount: 21200 },
+    { payment_method_id: debito, amount: 30000 },
+  ]);
+  const r = await db.query(
+    "select * from public.create_sale($1, $2::jsonb, $3::jsonb, true, 0, 'pos', 'verificado')",
+    [ramos, items, pagos]
+  );
+  venta = r.rows[0];
+  if (Number(venta.total) !== 51200) throw new Error("el total dio " + venta.total);
+  return `venta #${venta.number} · $${venta.total}`;
+});
+
+await paso("la venta descontó el stock de los dos productos", async () => {
+  const a = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, jamonPos]);
+  const b = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, picada]);
+  if (Number(a.rows[0].qty) !== 19.65) throw new Error("el jamón quedó en " + a.rows[0].qty);
+  if (Number(b.rows[0].qty) !== 9) throw new Error("la picada quedó en " + b.rows[0].qty);
+  return "jamón 19,650 kg · picada 9";
+});
+
+await paso("guardó el costo del momento en cada línea", async () => {
+  const r = await db.query(
+    "select cost_snapshot, source, scale_code from public.sale_items where sale_id = $1 order by subtotal",
+    [venta.id]
+  );
+  if (Number(r.rows[0].cost_snapshot) !== 9000) throw new Error("el costo quedó en " + r.rows[0].cost_snapshot);
+  if (r.rows[0].source !== "etiqueta") throw new Error("perdió el origen de la línea");
+  if (!r.rows[0].scale_code) throw new Error("no guardó el código de la etiqueta");
+  return "costo $9.000, origen etiqueta, con el código crudo";
+});
+
+await paso("el costo del momento NO se mueve cuando cambia el costo del producto", async () => {
+  await db.query("update public.products set cost = 11000 where id = $1", [jamonPos]);
+  const r = await db.query(
+    "select cost_snapshot from public.sale_items where sale_id = $1 and product_id = $2",
+    [venta.id, jamonPos]
+  );
+  if (Number(r.rows[0].cost_snapshot) !== 9000) {
+    throw new Error("el margen histórico se movió: quedó en " + r.rows[0].cost_snapshot);
+  }
+  await db.query("update public.products set cost = 9000 where id = $1", [jamonPos]);
+  return "sigue en $9.000 aunque el producto ahora cueste $11.000";
+});
+
+await paso("los pagos tienen que cubrir la venta", async () => {
+  const items = JSON.stringify([{ product_id: picada, qty: 1, unit_price: 47000 }]);
+  const pagos = JSON.stringify([{ payment_method_id: efectivo, amount: 10000 }]);
+  try {
+    await db.query(
+      "select * from public.create_sale($1, $2::jsonb, $3::jsonb)",
+      [ramos, items, pagos]
+    );
+  } catch (e) {
+    if (!/pagos suman/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazada: pagaban $10.000 de $47.000";
+  }
+  throw new Error("dejó cobrar de menos");
+});
+
+await paso("una venta rechazada no descuenta stock ni gasta numero", async () => {
+  const q = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, picada]);
+  if (Number(q.rows[0].qty) !== 9) throw new Error("el stock se movió igual: " + q.rows[0].qty);
+  const n = await db.query("select count(*)::int as n from public.sales");
+  if (n.rows[0].n !== 1) throw new Error("quedaron " + n.rows[0].n + " ventas");
+  return "stock intacto y una sola venta";
+});
+
+await paso("un producto por unidad no se puede vender fraccionado", async () => {
+  const items = JSON.stringify([{ product_id: picada, qty: 0.5, unit_price: 47000 }]);
+  const pagos = JSON.stringify([{ payment_method_id: efectivo, amount: 23500 }]);
+  try {
+    await db.query("select * from public.create_sale($1, $2::jsonb, $3::jsonb)", [ramos, items, pagos]);
+  } catch (e) {
+    if (!/por unidad/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "media picada no existe";
+  }
+  throw new Error("vendió media picada");
+});
+
+await paso("el stock puede quedar negativo: la mercadería ya está en la mano", async () => {
+  const items = JSON.stringify([{ product_id: picada, qty: 20, unit_price: 47000 }]);
+  const pagos = JSON.stringify([{ payment_method_id: efectivo, amount: 940000 }]);
+  const r = await db.query(
+    "select * from public.create_sale($1, $2::jsonb, $3::jsonb)",
+    [ramos, items, pagos]
+  );
+  const q = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, picada]);
+  if (Number(q.rows[0].qty) >= 0) throw new Error("no quedó negativo");
+  await db.query("select public.cancel_sale($1, 'prueba')", [r.rows[0].id]);
+  return "vendió igual y quedó en " + q.rows[0].qty;
+});
+
+await paso("anular repone el stock y no borra la venta", async () => {
+  const q = await db.query("select qty from public.stock where store_id = $1 and product_id = $2", [ramos, picada]);
+  if (Number(q.rows[0].qty) !== 9) throw new Error("no repuso: quedó en " + q.rows[0].qty);
+  const s = await db.query("select count(*)::int as n from public.sales where status = 'anulada'");
+  if (s.rows[0].n !== 1) throw new Error("la venta desapareció");
+  return "stock en 9 y la venta queda como anulada";
+});
+
+await paso("el arqueo cuenta el efectivo y NO la tarjeta", async () => {
+  // fondo 80.000 + efectivo de la venta 21.200 = 101.200
+  const r = await db.query("select public.expected_cash($1) as e", [turno]);
+  if (Number(r.rows[0].e) !== 101200) throw new Error("esperaba 101200 y dio " + r.rows[0].e);
+  return "$101.200 = fondo $80.000 + $21.200 en efectivo (los $30.000 de débito no)";
+});
+
+await paso("una venta anulada no cuenta en el arqueo", async () => {
+  const r = await db.query("select public.expected_cash($1) as e", [turno]);
+  if (Number(r.rows[0].e) !== 101200) throw new Error("la anulada sumó: dio " + r.rows[0].e);
+  return "sigue en $101.200";
+});
+
+await paso("un retiro baja lo esperado en el cajón", async () => {
+  await db.query(
+    "select public.register_cash_movement($1, -20000, 'retiro', 'Retiro del dueño')",
+    [turno]
+  );
+  const r = await db.query("select public.expected_cash($1) as e", [turno]);
+  if (Number(r.rows[0].e) !== 81200) throw new Error("dio " + r.rows[0].e);
+  return "$81.200 después de un retiro de $20.000";
+});
+
+await paso("el cierre calcula la diferencia contra lo contado", async () => {
+  const r = await db.query(
+    "select * from public.close_cash_session($1, 80700, 'Faltaron 500')",
+    [turno]
+  );
+  const c = r.rows[0];
+  if (Number(c.expected_cash) !== 81200) throw new Error("esperado " + c.expected_cash);
+  if (Number(c.difference) !== -500) throw new Error("diferencia " + c.difference);
+  if (c.status !== "cerrada") throw new Error("no lo cerró");
+  return "contó $80.700 sobre $81.200 esperados: faltan $500";
+});
+
+await paso("un turno cerrado no se cierra dos veces", async () => {
+  try {
+    await db.query("select public.close_cash_session($1, 1000)", [turno]);
+  } catch (e) {
+    if (!/ya está cerrado/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazado";
+  }
+  throw new Error("lo cerró de nuevo");
+});
+
+await paso("los numeros de venta no se repiten", async () => {
+  const r = await db.query(
+    "select count(*)::int as total, count(distinct number)::int as distintos from public.sales"
+  );
+  if (r.rows[0].total !== r.rows[0].distintos) throw new Error("hay números repetidos");
+  return `${r.rows[0].total} ventas, ${r.rows[0].distintos} números distintos`;
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);
