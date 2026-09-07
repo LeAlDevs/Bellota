@@ -5,6 +5,8 @@ import {
   Barcode,
   Check,
   CircleAlert,
+  Mail,
+  Phone,
   Scale,
   Search,
   Trash2,
@@ -64,6 +66,7 @@ export function PosTerminal({
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [fiscal, setFiscal] = useState(true);
   const [email, setEmail] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [scan, setScan] = useState("");
   const [pendiente, setPendiente] = useState<PickerProduct | null>(null);
   const [peso, setPeso] = useState("");
@@ -240,6 +243,7 @@ export function PosTerminal({
     setLineas([]);
     setPagos([]);
     setEmail("");
+    setTelefono("");
     setBalanzaSinVerificar(0);
     setBalanzaVerificada(false);
     setFiscal(true);
@@ -290,6 +294,7 @@ export function PosTerminal({
         is_fiscal: fiscal,
         scale_check: scaleCheck,
         email: email || undefined,
+        phone: telefono || undefined,
       });
 
       if (res.error) {
@@ -586,14 +591,30 @@ export function PosTerminal({
             </p>
           )}
 
-          <div className="flex items-center gap-2.5 rounded-lg border border-line-strong px-3 py-2">
-            <span className="text-[12px] text-muted">Mail</span>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="opcional, para el ticket"
-              className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
-            />
+          {/* Los dos son opcionales y no bloquean el cobro. El teléfono suele
+              ser el que más sirve: es el que después sirve para avisar por
+              WhatsApp cuando llega mercadería. */}
+          <div className="flex flex-col overflow-hidden rounded-lg border border-line-strong">
+            <div className="flex items-center gap-2.5 px-3 py-2">
+              <Mail className="size-3.5 shrink-0 text-faint" strokeWidth={1.8} />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Mail, para el ticket"
+                inputMode="email"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
+              />
+            </div>
+            <div className="flex items-center gap-2.5 border-t border-line px-3 py-2">
+              <Phone className="size-3.5 shrink-0 text-faint" strokeWidth={1.8} />
+              <input
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                placeholder="Teléfono"
+                inputMode="tel"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-faint"
+              />
+            </div>
           </div>
 
           <span className="grow" />
