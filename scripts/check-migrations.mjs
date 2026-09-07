@@ -1034,5 +1034,55 @@ await paso("un producto que NO vence no genera lotes", async () => {
   return "ninguno";
 });
 
+// ── El importe de la etiqueta manda sobre cantidad x precio ───────────
+await paso("la linea de etiqueta cobra el importe del ticket, no el recalculado", async () => {
+  // Caso real de la primera prueba (07/09/2026): el ticket decía $5.400 y el
+  // mostrador quería cobrar $5.377,20 porque redondeaba el peso y volvía a
+  // multiplicar. El cliente tiene el papel en la mano.
+  await db.query("select public.open_cash_session($1, 0)", [mosconi]);
+
+  const a = await db.query(
+    "select * from public.create_product('JAMON COCIDO 8VA', 'kg', 26400, null, 'simple', 18000, 0, false, null, null, null, null, 65)"
+  );
+  const b = await db.query(
+    "select * from public.create_product('JAMON COCIDO 42', 'kg', 30000, null, 'simple', 21000, 0, false, null, null, null, null, 66)"
+  );
+  await db.query("select public.adjust_stock($1, $2, 5, 'alta_inicial')", [mosconi, a.rows[0].id]);
+  await db.query("select public.adjust_stock($1, $2, 5, 'alta_inicial')", [mosconi, b.rows[0].id]);
+
+  // Lo que arma el mostrador al escanear: peso reconstruido (redondeado) más
+  // el importe que traía la etiqueta.
+  const items = JSON.stringify([
+    { product_id: a.rows[0].id, qty: 0.098, unit_price: 26400, subtotal: 2600, source: "etiqueta" },
+    { product_id: b.rows[0].id, qty: 0.093, unit_price: 30000, subtotal: 2800, source: "etiqueta" },
+  ]);
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: 5400 }]);
+
+  const r = await db.query(
+    "select * from public.create_sale($1, $2::jsonb, $3::jsonb)",
+    [mosconi, items, pagos]
+  );
+  if (Number(r.rows[0].total) !== 5400) {
+    throw new Error("cobró " + r.rows[0].total + " y el ticket decía 5400");
+  }
+  return "$5.400, igual que el ticket (antes daba $5.377,20)";
+});
+
+await paso("sin importe de etiqueta, la linea se sigue calculando sola", async () => {
+  const p = await db.query("select id from public.products where plu = 65");
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const items = JSON.stringify([
+    { product_id: p.rows[0].id, qty: 0.25, unit_price: 26400, source: "manual" },
+  ]);
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: 6600 }]);
+  const r = await db.query(
+    "select * from public.create_sale($1, $2::jsonb, $3::jsonb)",
+    [mosconi, items, pagos]
+  );
+  if (Number(r.rows[0].total) !== 6600) throw new Error("dio " + r.rows[0].total);
+  return "0,250 kg x $26.400 = $6.600";
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);

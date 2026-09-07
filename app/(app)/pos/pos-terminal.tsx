@@ -88,7 +88,14 @@ export function PosTerminal({
     [products]
   );
 
-  const subtotal = lineas.reduce((a, l) => a + l.qty * l.precio, 0);
+  /**
+   * Lo que se cobra de cada línea. Si vino de una etiqueta, manda el importe
+   * del ticket: el cliente ya lo leyó en el papel, y reconstruirlo como
+   * cantidad × precio lo corre por el redondeo del peso.
+   */
+  const importeDe = (l: Linea) => l.importeEtiqueta ?? l.qty * l.precio;
+
+  const subtotal = lineas.reduce((a, l) => a + importeDe(l), 0);
   const pagado = pagos.reduce((a, p) => a + p.monto, 0);
   const recargo = pagos.reduce((a, p) => a + (p.monto * p.metodo.surcharge_pct) / 100, 0);
   const total = subtotal + recargo;
@@ -279,6 +286,7 @@ export function PosTerminal({
         product_id: l.producto.id,
         qty: l.qty,
         unit_price: l.precio,
+        subtotal: l.importeEtiqueta,
         source: l.source,
         scale_code: l.scaleCode,
       }));
@@ -458,9 +466,7 @@ export function PosTerminal({
                     </span>
                   </div>
                   <span className="grow" />
-                  <span className="num text-[15px]">
-                    {formatMoney(l.qty * l.precio)}
-                  </span>
+                  <span className="num text-[15px]">{formatMoney(importeDe(l))}</span>
                   <button
                     type="button"
                     aria-label={`Sacar ${l.producto.name}`}

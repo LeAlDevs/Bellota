@@ -8,6 +8,11 @@ export type LineaVenta = {
   product_id: string;
   qty: number;
   unit_price: number;
+  /**
+   * Importe de la línea, cuando viene de una etiqueta de balanza. Manda sobre
+   * cantidad × precio: es el número que el cliente ya leyó en el papel.
+   */
+  subtotal?: number;
   source: "etiqueta" | "codigo" | "busqueda" | "manual";
   scale_code?: string;
 };
