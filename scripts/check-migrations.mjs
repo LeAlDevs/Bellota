@@ -1084,5 +1084,187 @@ await paso("sin importe de etiqueta, la linea se sigue calculando sola", async (
   return "0,250 kg x $26.400 = $6.600";
 });
 
+// ── Devoluciones y reportes ───────────────────────────────────────────
+let ventaDev, itemDev, turnoMos, reporteAntes;
+
+await paso("preparo una venta para devolver", async () => {
+  const t = await db.query(
+    "select id from public.cash_sessions where store_id = $1 and status = 'abierta'",
+    [mosconi]
+  );
+  turnoMos = t.rows[0].id;
+
+  const p = await db.query("select id from public.products where plu = 66");
+  itemDev = p.rows[0].id;
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+
+  await db.query("select public.adjust_stock($1, $2, 10, 'alta_inicial')", [mosconi, itemDev]);
+
+  // El producto ya tiene ventas de casos anteriores: el reporte se compara
+  // contra este estado, no contra cero.
+  const hoyRep = new Date().toISOString().slice(0, 10);
+  const antes = await db.query(
+    "select * from public.report_sales_by_product($1::date, $1::date, $2, false) where product_id = $3",
+    [hoyRep, mosconi, itemDev]
+  );
+  reporteAntes = antes.rows[0]
+    ? { qty: Number(antes.rows[0].qty), revenue: Number(antes.rows[0].revenue) }
+    : { qty: 0, revenue: 0 };
+
+  const items = JSON.stringify([
+    { product_id: itemDev, qty: 2, unit_price: 30000, source: "busqueda" },
+  ]);
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: 60000 }]);
+  const r = await db.query(
+    "select * from public.create_sale($1, $2::jsonb, $3::jsonb)",
+    [mosconi, items, pagos]
+  );
+  ventaDev = r.rows[0];
+  return `venta #${ventaDev.number} por $${ventaDev.total}`;
+});
+
+await paso("no se puede devolver mas de lo que se vendio", async () => {
+  const li = await db.query("select id from public.sale_items where sale_id = $1", [ventaDev.id]);
+  const items = JSON.stringify([{ sale_item_id: li.rows[0].id, qty: 5 }]);
+  try {
+    await db.query("select public.create_return($1, $2::jsonb, null)", [ventaDev.id, items]);
+  } catch (e) {
+    if (!/no se pueden devolver/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "vendió 2 y quiso devolver 5: rechazado";
+  }
+  throw new Error("dejó devolver de más");
+});
+
+await paso("la devolucion repone stock y saca plata del cajon", async () => {
+  const antesStock = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [mosconi, itemDev]
+  );
+  const antesCaja = await db.query("select public.expected_cash($1) as e", [turnoMos]);
+
+  const li = await db.query("select id from public.sale_items where sale_id = $1", [ventaDev.id]);
+  const items = JSON.stringify([{ sale_item_id: li.rows[0].id, qty: 1 }]);
+  await db.query("select public.create_return($1, $2::jsonb, 'Se lo llevó fallado')", [
+    ventaDev.id,
+    items,
+  ]);
+
+  const despuesStock = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [mosconi, itemDev]
+  );
+  const despuesCaja = await db.query("select public.expected_cash($1) as e", [turnoMos]);
+
+  const dStock = Number(despuesStock.rows[0].qty) - Number(antesStock.rows[0].qty);
+  const dCaja = Number(despuesCaja.rows[0].e) - Number(antesCaja.rows[0].e);
+  if (dStock !== 1) throw new Error("el stock subió " + dStock);
+  if (dCaja !== -30000) throw new Error("la caja cambió " + dCaja);
+  return "+1 al stock y −$30.000 del cajón";
+});
+
+await paso("devolver la parte restante sí se puede", async () => {
+  const li = await db.query("select id from public.sale_items where sale_id = $1", [ventaDev.id]);
+  const items = JSON.stringify([{ sale_item_id: li.rows[0].id, qty: 1 }]);
+  await db.query("select public.create_return($1, $2::jsonb, null)", [ventaDev.id, items]);
+  const r = await db.query("select public.returned_qty($1) as q", [li.rows[0].id]);
+  if (Number(r.rows[0].q) !== 2) throw new Error("devuelto " + r.rows[0].q);
+  return "las 2 devueltas, ni una más";
+});
+
+await paso("ahora ya no queda nada por devolver", async () => {
+  const li = await db.query("select id from public.sale_items where sale_id = $1", [ventaDev.id]);
+  const items = JSON.stringify([{ sale_item_id: li.rows[0].id, qty: 1 }]);
+  try {
+    await db.query("select public.create_return($1, $2::jsonb, null)", [ventaDev.id, items]);
+  } catch {
+    return "rechazado, bien";
+  }
+  throw new Error("dejó devolver una tercera");
+});
+
+await paso("no se devuelve contra una venta anulada", async () => {
+  const anulada = await db.query("select id from public.sales where status = 'anulada' limit 1");
+  const li = await db.query("select id from public.sale_items where sale_id = $1", [
+    anulada.rows[0].id,
+  ]);
+  if (li.rows.length === 0) return "la anulada no tiene líneas para probar";
+  const items = JSON.stringify([{ sale_item_id: li.rows[0].id, qty: 1 }]);
+  try {
+    await db.query("select public.create_return($1, $2::jsonb, null)", [
+      anulada.rows[0].id,
+      items,
+    ]);
+  } catch (e) {
+    if (!/anulada/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "rechazado";
+  }
+  throw new Error("dejó devolver de una venta anulada");
+});
+
+await paso("el reporte por producto netea las devoluciones", async () => {
+  // Se vendieron 2 unidades por $60.000 y se devolvieron las 2: el reporte
+  // tiene que quedar exactamente como estaba antes de esa venta.
+  const hoy = new Date().toISOString().slice(0, 10);
+  const r = await db.query(
+    "select * from public.report_sales_by_product($1::date, $1::date, $2, false) where product_id = $3",
+    [hoy, mosconi, itemDev]
+  );
+  const ahora = r.rows[0]
+    ? { qty: Number(r.rows[0].qty), revenue: Number(r.rows[0].revenue) }
+    : { qty: 0, revenue: 0 };
+
+  if (Math.abs(ahora.qty - reporteAntes.qty) > 0.0005) {
+    throw new Error(`la cantidad pasó de ${reporteAntes.qty} a ${ahora.qty}`);
+  }
+  if (Math.abs(ahora.revenue - reporteAntes.revenue) > 0.01) {
+    throw new Error(`la venta pasó de ${reporteAntes.revenue} a ${ahora.revenue}`);
+  }
+  return `vendí 2 por $60.000 y devolví las 2: el reporte quedó igual (${ahora.qty} / $${ahora.revenue})`;
+});
+
+await paso("el reporte por producto calcula el margen", async () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const r = await db.query(
+    "select * from public.report_sales_by_product($1::date, $1::date, null, false)",
+    [hoy]
+  );
+  if (r.rows.length === 0) throw new Error("no devolvió ninguna fila");
+  const con = r.rows.find((x) => Number(x.revenue) > 0 && Number(x.cost) > 0);
+  if (!con) throw new Error("ninguna fila tiene costo cargado");
+  const esperado = Number(con.revenue) - Number(con.cost);
+  if (Math.abs(Number(con.margin) - esperado) > 0.01) {
+    throw new Error("el margen dio " + con.margin);
+  }
+  return `${con.name}: venta $${con.revenue}, costo $${con.cost}, margen $${con.margin}`;
+});
+
+await paso("el resumen del periodo cierra", async () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const r = await db.query(
+    "select * from public.report_sales_summary($1::date, $1::date, null, false)",
+    [hoy]
+  );
+  const s = r.rows[0];
+  if (!s) throw new Error("no devolvió resumen");
+  if (Number(s.returned) <= 0) throw new Error("no contó las devoluciones");
+  const esperado = Number(s.revenue) - Number(s.cost);
+  if (Math.abs(Number(s.margin) - esperado) > 0.01) {
+    throw new Error("el margen del resumen no cierra");
+  }
+  return `${s.tickets} tickets · devuelto $${s.returned} · ${s.cancelled} anuladas`;
+});
+
+await paso("el reporte por hora agrupa en hora de Buenos Aires", async () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const r = await db.query(
+    "select * from public.report_sales_by_hour($1::date, $1::date, null)",
+    [hoy]
+  );
+  if (r.rows.length === 0) throw new Error("no devolvió ninguna hora");
+  const total = r.rows.reduce((a, x) => a + Number(x.tickets), 0);
+  if (total === 0) throw new Error("no contó tickets");
+  return `${r.rows.length} franja(s), ${total} tickets`;
+});
+
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);
 process.exit(fallas === 0 ? 0 : 1);
