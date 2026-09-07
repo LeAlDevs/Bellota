@@ -151,15 +151,14 @@ export function Importer({
       "Categoría",
       "Stock mínimo",
       "Vence",
-      "Días de vida útil",
       ...stores.map((s) => `Stock ${s.name}`),
     ];
     // Los tres casos reales: lo que se pesa lleva PLU, lo envasado lleva EAN,
     // y lo que se arma acá adentro puede no llevar ninguno de los dos.
     const ejemplo = [
-      ["Jamón crudo estacionado", 412, "", "", "kg", 28314, 42900, "Fiambres", 5, "no", "", ...stores.map(() => 0)],
-      ["Aceitunas verdes 350 g", "", "7791234567890", "ACE350", "unidad", 4100, 6400, "Envasados", 6, "no", "", ...stores.map(() => 0)],
-      ["Picada Ibérico 800 g", 3302, "", "", "unidad", 27730, 47000, "Elaborados", 4, "sí", 4, ...stores.map(() => 0)],
+      ["Jamón crudo estacionado", 412, "", "", "kg", 28314, 42900, "Fiambres", 5, "no", ...stores.map(() => 0)],
+      ["Aceitunas verdes 350 g", "", "7791234567890", "ACE350", "unidad", 4100, 6400, "Envasados", 6, "no", ...stores.map(() => 0)],
+      ["Picada Ibérico 800 g", 3302, "", "", "unidad", 27730, 47000, "Elaborados", 4, "sí", ...stores.map(() => 0)],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([encabezados, ...ejemplo]);

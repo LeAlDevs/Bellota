@@ -317,17 +317,10 @@ export function ProductForm({
             </label>
 
             {trackExpiry && (
-              <Field
-                label="¿Cuántos días dura normalmente?"
-                error={err?.shelf_life_days?.[0]}
-                hint="Opcional. Solo sirve para proponerte la fecha al recibir; la que vale es la que ponés ahí."
-              >
-                <Input
-                  name="shelf_life_days"
-                  inputMode="numeric"
-                  defaultValue={p.shelf_life_days ?? ""}
-                />
-              </Field>
+              <p className="rounded-lg bg-canvas px-3.5 py-2.5 text-[11.5px] leading-relaxed text-muted">
+                La fecha se pone al recibir la mercadería, no acá: cada entrada
+                queda como un lote con su propio vencimiento.
+              </p>
             )}
           </Card>
 
