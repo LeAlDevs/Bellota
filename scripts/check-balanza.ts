@@ -58,7 +58,13 @@ const TICKETS: Ticket[] = [
  * Formato: { codigo: "2000970036403", esperado: { plu: 97, importe: 3640 } }
  * Con esto cargado, el formato queda probado de verdad.
  */
-const CODIGOS_REALES: { codigo: string; esperado: { plu: number; importe: number } }[] = [];
+const CODIGOS_REALES: { codigo: string; esperado: { plu: number; importe: number } }[] = [
+  // Ticket 95-25138 del 07/09/2026, de la prueba de venta real.
+  // Las dos líneas pesaron 0,200 kg y los códigos son DISTINTOS: lo que llevan
+  // es el importe, no el peso.
+  { codigo: "2000650026007", esperado: { plu: 65, importe: 2600 } },
+  { codigo: "2000660028008", esperado: { plu: 66, importe: 2800 } },
+];
 
 let fallas = 0;
 
