@@ -12,6 +12,9 @@ export type LineaCompra = {
   unit_cost: number;
   /** { store_id: cantidad } — tiene que sumar exactamente lo recibido. */
   allocations: Record<string, number>;
+  /** Obligatoria si el producto lleva control de vencimiento. */
+  expires_on?: string;
+  lot_code?: string;
 };
 
 const proveedorSchema = z.object({

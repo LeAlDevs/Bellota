@@ -591,15 +591,23 @@ await paso("la recepcion reparte el stock entre los dos locales", async () => {
   return "Ramos 16,000 / Mosconi 3,800";
 });
 
-await paso("el costo promedio ponderado sale bien", async () => {
-  // (10 x 20000 + 9,8 x 24000) / 19,8 = 21979,80
+await paso("la compra NO pisa el costo cargado a mano", async () => {
+  // Decisión del dueño (07/09/2026): el costo es manual. La compra a $24.000
+  // no puede cambiar el $20.000 que él cargó.
   const r = await db.query("select cost from public.products where id = $1", [jamon]);
-  const esperado = (10 * 20000 + 9.8 * 24000) / 19.8;
-  const got = Number(r.rows[0].cost);
-  if (Math.abs(got - esperado) > 0.01) {
-    throw new Error(`esperaba ${esperado.toFixed(2)} y dio ${got}`);
+  if (Number(r.rows[0].cost) !== 20000) {
+    throw new Error("lo pisó: quedó en " + r.rows[0].cost);
   }
-  return `$${got} (antes $20.000, compró a $24.000)`;
+  return "sigue en $20.000 aunque compró a $24.000";
+});
+
+await paso("pero el sistema avisa de la diferencia", async () => {
+  const r = await db.query("select * from public.product_cost_drift() where product_id = $1", [jamon]);
+  if (r.rows.length === 0) throw new Error("no reportó la diferencia");
+  const d = r.rows[0];
+  if (Number(d.last_cost) !== 24000) throw new Error("el último costo dio " + d.last_cost);
+  if (Number(d.drift_pct) !== 20) throw new Error("el desvío dio " + d.drift_pct);
+  return `cargado $20.000, última compra $24.000, +${d.drift_pct}%`;
 });
 
 await paso("el total de la compra es lo recibido por el costo, no lo pedido", async () => {
@@ -631,23 +639,28 @@ await paso("una compra a cuenta corriente SI genera deuda", async () => {
   return "le debemos $125.000";
 });
 
-await paso("con stock negativo el costo no se vuelve absurdo", async () => {
-  const r = await db.query(
-    "select * from public.create_product('Producto en rojo', 'kg', 1000, null, 'simple', 500, 0, false, null, null, null, null, 7777)"
-  );
-  const pid = r.rows[0].id;
-  await db.query("select public.adjust_stock($1, $2, -8, 'venta')", [ramos, pid]);
-  const items = JSON.stringify([
-    { product_id: pid, qty_received: 4, unit_cost: 900, allocations: { [ramos]: 4 } },
-  ]);
+await paso("update_product puede cambiar el costo a mano", async () => {
   await db.query(
-    "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
-    [prov, items]
+    "select public.update_product($1, 'Bondiola ahumada', 'kg', 31500, null, 'simple', 2, false, null, null, null, null, true, null, 1077, 22500)",
+    [jamon]
   );
-  const c = await db.query("select cost from public.products where id = $1", [pid]);
-  const costo = Number(c.rows[0].cost);
-  if (costo !== 900) throw new Error("el costo dio " + costo + ", esperaba 900");
-  return "quedó en $900, el costo de la compra";
+  const r = await db.query("select cost from public.products where id = $1", [jamon]);
+  if (Number(r.rows[0].cost) !== 22500) throw new Error("quedó en " + r.rows[0].cost);
+  await db.query(
+    "select public.update_product($1, 'Bondiola ahumada', 'kg', 31500, null, 'simple', 2, false, null, null, null, null, true, null, 1077, 20000)",
+    [jamon]
+  );
+  return "de $20.000 a $22.500 y de vuelta, porque lo decide el dueño";
+});
+
+await paso("update_product SIN costo deja el que estaba", async () => {
+  await db.query(
+    "select public.update_product($1, 'Bondiola ahumada', 'kg', 31500, null, 'simple', 2, false, null, null, null, null, true, null, 1077)",
+    [jamon]
+  );
+  const r = await db.query("select cost from public.products where id = $1", [jamon]);
+  if (Number(r.rows[0].cost) !== 20000) throw new Error("lo puso en " + r.rows[0].cost);
+  return "sigue en $20.000: no lo pone en cero sin querer";
 });
 
 await paso("no se puede recibir una linea con cantidad cero", async () => {
@@ -886,6 +899,139 @@ await paso("los numeros de venta no se repiten", async () => {
   );
   if (r.rows[0].total !== r.rows[0].distintos) throw new Error("hay números repetidos");
   return `${r.rows[0].total} ventas, ${r.rows[0].distintos} números distintos`;
+});
+
+// ── Lotes y vencimiento ───────────────────────────────────────────────
+let queso;
+await paso("un producto con vencimiento exige la fecha al recibirlo", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Queso cremoso', 'unidad', 9800, null, 'simple', 6200, 4, true, 20, null, null, null, 2099)"
+  );
+  queso = r.rows[0].id;
+  const items = JSON.stringify([
+    { product_id: queso, qty_received: 2, unit_cost: 6200, allocations: { [ramos]: 2 } },
+  ]);
+  try {
+    await db.query(
+      "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+      [prov, items]
+    );
+  } catch (e) {
+    if (!/vencimiento/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "sin fecha no entra";
+  }
+  throw new Error("dejó entrar mercadería que vence sin fecha");
+});
+
+await paso("LA PREGUNTA DEL DUEÑO: 4 iguales, 2 vencen en 3 dias y 2 en una semana", async () => {
+  const hoy = new Date();
+  const enDias = (d) => new Date(hoy.getTime() + d * 86400000).toISOString().slice(0, 10);
+
+  for (const [dias, cant] of [[3, 2], [7, 2]]) {
+    const items = JSON.stringify([
+      {
+        product_id: queso,
+        qty_received: cant,
+        unit_cost: 6200,
+        expires_on: enDias(dias),
+        allocations: { [ramos]: cant },
+      },
+    ]);
+    await db.query(
+      "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+      [prov, items]
+    );
+  }
+
+  const lotes = await db.query(
+    "select expires_on, qty_remaining from public.stock_lots where product_id = $1 order by expires_on",
+    [queso]
+  );
+  if (lotes.rows.length !== 2) throw new Error("armó " + lotes.rows.length + " lotes");
+  if (Number(lotes.rows[0].qty_remaining) !== 2 || Number(lotes.rows[1].qty_remaining) !== 2) {
+    throw new Error("las cantidades quedaron mal");
+  }
+  const stock = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [ramos, queso]
+  );
+  if (Number(stock.rows[0].qty) !== 4) throw new Error("el stock quedó en " + stock.rows[0].qty);
+  return "1 producto, 4 unidades, 2 lotes: uno vence en 3 días y otro en 7";
+});
+
+await paso("vender descuenta del lote que vence primero, sin preguntarle al cajero", async () => {
+  await db.query("select public.adjust_stock($1, $2, -2, 'venta')", [ramos, queso]);
+  const r = await db.query(
+    "select expires_on, qty_remaining from public.stock_lots where product_id = $1 order by expires_on",
+    [queso]
+  );
+  if (Number(r.rows[0].qty_remaining) !== 0) {
+    throw new Error("el lote viejo quedó en " + r.rows[0].qty_remaining);
+  }
+  if (Number(r.rows[1].qty_remaining) !== 2) {
+    throw new Error("tocó el lote nuevo: quedó en " + r.rows[1].qty_remaining);
+  }
+  return "se llevó las 2 del lote de 3 días y no tocó el de 7";
+});
+
+await paso("dar de baja un lote vencido sale como merma con motivo", async () => {
+  const l = await db.query(
+    "select id from public.stock_lots where product_id = $1 and qty_remaining > 0 limit 1",
+    [queso]
+  );
+  await db.query("select public.write_off_lot($1)", [l.rows[0].id]);
+
+  const m = await db.query(
+    "select reason, motive, delta from public.stock_movements where product_id = $1 order by created_at desc limit 1",
+    [queso]
+  );
+  if (m.rows[0].reason !== "merma" || m.rows[0].motive !== "vencido") {
+    throw new Error(`quedó ${m.rows[0].reason}/${m.rows[0].motive}`);
+  }
+  const q = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [ramos, queso]
+  );
+  if (Number(q.rows[0].qty) !== 0) throw new Error("el stock quedó en " + q.rows[0].qty);
+  return "merma por vencido, y el stock bajó a 0";
+});
+
+await paso("la transferencia se lleva el lote con su fecha", async () => {
+  const hoy = new Date();
+  const vence = new Date(hoy.getTime() + 10 * 86400000).toISOString().slice(0, 10);
+  const items = JSON.stringify([
+    { product_id: queso, qty_received: 6, unit_cost: 6200, expires_on: vence, allocations: { [ramos]: 6 } },
+  ]);
+  await db.query(
+    "select public.receive_purchase($1, null, false, null, 'contado', null, $2::jsonb)",
+    [prov, items]
+  );
+
+  const t = JSON.stringify([{ product_id: queso, qty: 4 }]);
+  await db.query("select public.create_transfer($1, $2, $3::jsonb, null)", [ramos, mosconi, t]);
+
+  const destino = await db.query(
+    "select expires_on, qty_remaining from public.stock_lots where store_id = $1 and product_id = $2 and qty_remaining > 0",
+    [mosconi, queso]
+  );
+  if (destino.rows.length !== 1) throw new Error("en el destino hay " + destino.rows.length + " lotes");
+  if (Number(destino.rows[0].qty_remaining) !== 4) {
+    throw new Error("llegaron " + destino.rows[0].qty_remaining);
+  }
+  const origen = await db.query(
+    "select sum(qty_remaining)::numeric as q from public.stock_lots where store_id = $1 and product_id = $2",
+    [ramos, queso]
+  );
+  if (Number(origen.rows[0].q) !== 2) throw new Error("en el origen quedaron " + origen.rows[0].q);
+  return "4 al destino con la misma fecha, 2 quedaron en el origen";
+});
+
+await paso("un producto que NO vence no genera lotes", async () => {
+  const r = await db.query(
+    "select count(*)::int as n from public.stock_lots l join public.products p on p.id = l.product_id where not p.track_expiry"
+  );
+  if (r.rows[0].n !== 0) throw new Error("armó " + r.rows[0].n + " lotes de más");
+  return "ninguno";
 });
 
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);

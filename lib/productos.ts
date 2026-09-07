@@ -10,6 +10,8 @@ type Fila = {
   unit_type: "kg" | "unidad";
   price: number;
   cost: number;
+  track_expiry: boolean;
+  shelf_life_days: number | null;
   stock: { qty: number; store_id: string }[] | null;
 };
 
@@ -27,7 +29,7 @@ export async function getProductosParaPicker(): Promise<PickerProduct[]> {
   const sb = await createClient();
   const { data } = await sb
     .from("products")
-    .select("id, name, plu, barcode, unit_type, price, cost, stock(qty, store_id)")
+    .select("id, name, plu, barcode, unit_type, price, cost, track_expiry, shelf_life_days, stock(qty, store_id)")
     .eq("is_active", true)
     .order("name")
     .returns<Fila[]>();
@@ -40,6 +42,8 @@ export async function getProductosParaPicker(): Promise<PickerProduct[]> {
     unit_type: p.unit_type,
     price: Number(p.price),
     cost: Number(p.cost),
+    track_expiry: p.track_expiry,
+    shelf_life_days: p.shelf_life_days,
     stock: Object.fromEntries(
       (p.stock ?? []).map((s) => [s.store_id, Number(s.qty)])
     ),

@@ -13,6 +13,10 @@ export type PickerProduct = {
   barcode: string | null;
   unit_type: "kg" | "unidad";
   price: number;
+  /** Si lleva control de vencimiento, la recepción va a pedir la fecha. */
+  track_expiry: boolean;
+  /** Cuántos días dura normalmente. Solo sirve para prellenar esa fecha. */
+  shelf_life_days: number | null;
   /** Costo promedio ponderado, para mostrar cuánta plata se pierde en una merma. */
   cost: number;
   /** { store_id: cantidad } */

@@ -173,6 +173,8 @@ export async function editarProducto(
     p_is_active: bool(formData.get("is_active")),
     p_price_reason: str(formData.get("price_reason")) ?? null,
     p_plu: d.plu ?? null,
+    // El costo es manual: lo decide el dueño, no la última compra.
+    p_cost: d.cost ?? null,
   });
 
   if (error) return { error: errorLegible(error) };

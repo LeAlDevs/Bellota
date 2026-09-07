@@ -62,6 +62,7 @@ export function ProductForm({
   const [unitType, setUnitType] = useState<"kg" | "unidad">(p.unit_type);
   const [trackExpiry, setTrackExpiry] = useState(p.track_expiry);
   const [price, setPrice] = useState(String(p.price));
+  const [costo, setCosto] = useState(String(p.cost));
   const [plu, setPlu] = useState(p.plu != null ? String(p.plu) : "");
   const [sugiriendo, startSugerir] = useTransition();
 
@@ -71,9 +72,10 @@ export function ProductForm({
   }, [state]);
 
   const priceNumber = Number(price.replace(/\./g, "").replace(",", "."));
+  const costNumber = Number(costo.replace(/\./g, "").replace(",", "."));
   const margin =
-    p.cost > 0 && priceNumber > 0
-      ? ((priceNumber - p.cost) / priceNumber) * 100
+    costNumber > 0 && priceNumber > 0
+      ? ((priceNumber - costNumber) / priceNumber) * 100
       : null;
 
   const err = state.fieldErrors;
@@ -265,25 +267,18 @@ export function ProductForm({
               />
             </Field>
 
-            {isEdit ? (
-              <div className="flex flex-col gap-1.5 rounded-lg bg-canvas p-3.5">
-                <span className="text-xs font-medium text-muted">
-                  Costo promedio ponderado
-                </span>
-                <span className="num text-lg">{formatMoney(p.cost)}</span>
-                <span className="text-[11.5px] leading-relaxed text-faint">
-                  Lo recalcula cada recepción de compra. No se edita a mano.
-                </span>
-              </div>
-            ) : (
-              <Field
-                label="Costo inicial"
-                error={err?.cost?.[0]}
-                hint="Punto de partida. Después lo maneja el promedio ponderado."
-              >
-                <Input name="cost" inputMode="decimal" defaultValue={String(p.cost)} />
-              </Field>
-            )}
+            <Field
+              label="Costo"
+              error={err?.cost?.[0]}
+              hint="Lo ponés vos. Al recibir una compra el sistema avisa si el proveedor facturó distinto, pero no lo cambia solo."
+            >
+              <Input
+                name="cost"
+                inputMode="decimal"
+                value={costo}
+                onChange={(e) => setCosto(e.target.value)}
+              />
+            </Field>
 
             {margin !== null && (
               <div className="flex items-center justify-between rounded-lg bg-ok-bg px-3.5 py-2.5">
@@ -315,16 +310,17 @@ export function ProductForm({
               <span className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-medium">Controlar vencimiento</span>
                 <span className="text-[11.5px] leading-relaxed text-muted">
-                  Activa el manejo por lotes y el aviso en el Inicio
+                  Al recibir mercadería de este producto se va a pedir la fecha, y
+                  cada entrada va a quedar como un lote aparte
                 </span>
               </span>
             </label>
 
             {trackExpiry && (
               <Field
-                label="Días de vida útil"
+                label="¿Cuántos días dura normalmente?"
                 error={err?.shelf_life_days?.[0]}
-                hint="Desde que entra o se produce"
+                hint="Opcional. Solo sirve para proponerte la fecha al recibir; la que vale es la que ponés ahí."
               >
                 <Input
                   name="shelf_life_days"

@@ -18,6 +18,8 @@ type Linea = {
   pedido: string;
   recibido: string;
   costo: string;
+  /** Fecha de vencimiento de ESTA entrada. Cada recepción es un lote aparte. */
+  vence: string;
   /** { store_id: texto } — se guarda como texto para no pelear con la coma. */
   reparto: Record<string, string>;
 };
@@ -57,6 +59,14 @@ export function PurchaseForm({
 
   function agregar() {
     if (!producto) return;
+    // Los días de vida útil del producto solo sirven para proponer la fecha:
+    // la que vale es la que se confirma acá.
+    const sugerida =
+      producto.track_expiry && producto.shelf_life_days
+        ? new Date(Date.now() + producto.shelf_life_days * 86400000)
+            .toISOString()
+            .slice(0, 10)
+        : "";
     setLineas((ls) => [
       ...ls,
       {
@@ -64,6 +74,7 @@ export function PurchaseForm({
         pedido: "",
         recibido: "",
         costo: String(producto.cost || ""),
+        vence: sugerida,
         reparto: Object.fromEntries(stores.map((s) => [s.id, ""])),
       },
     ]);
@@ -98,12 +109,22 @@ export function PurchaseForm({
       const cierra = Math.abs(repartido - recibido) < 0.0005 && recibido > 0;
       const diferenciaPedido =
         l.pedido.trim() !== "" ? recibido - n(l.pedido) : null;
-      return { recibido, repartido, subtotal, cierra, diferenciaPedido };
+      // El costo es manual: el sistema avisa si la factura vino distinta, pero
+      // no lo cambia solo.
+      const costoCargado = Number(l.producto.cost);
+      const costoFactura = n(l.costo);
+      const difCosto =
+        costoCargado > 0 && costoFactura > 0 && costoFactura !== costoCargado
+          ? ((costoFactura - costoCargado) / costoCargado) * 100
+          : null;
+      const faltaVence = l.producto.track_expiry && l.vence.trim() === "";
+      return { recibido, repartido, subtotal, cierra, diferenciaPedido, difCosto, faltaVence };
     });
   }, [lineas, stores]);
 
   const total = resumen.reduce((a, r) => a + r.subtotal, 0);
-  const todoCierra = resumen.length > 0 && resumen.every((r) => r.cierra);
+  const todoCierra =
+    resumen.length > 0 && resumen.every((r) => r.cierra && !r.faltaVence);
 
   function confirmar() {
     startEnviar(async () => {
@@ -119,6 +140,7 @@ export function PurchaseForm({
           qty_ordered: l.pedido.trim() !== "" ? n(l.pedido) : undefined,
           qty_received: n(l.recibido),
           unit_cost: n(l.costo),
+          expires_on: l.producto.track_expiry ? l.vence : undefined,
           allocations: Object.fromEntries(
             stores
               .map((s) => [s.id, n(l.reparto[s.id] ?? "")] as const)
@@ -131,7 +153,7 @@ export function PurchaseForm({
         toast.error(res.error);
         return;
       }
-      toast.success("Compra recibida. El stock y los costos ya se actualizaron.");
+      toast.success("Compra recibida. El stock ya entró en cada local.");
       router.push("/stock/compras");
     });
   }
@@ -340,8 +362,41 @@ export function PurchaseForm({
                     </button>
 
                     {/* Avisos de la línea, debajo y ocupando el ancho */}
-                    {(!r.cierra || r.diferenciaPedido) && (
+                    {(!r.cierra ||
+                      r.diferenciaPedido ||
+                      r.difCosto !== null ||
+                      l.producto.track_expiry) && (
                       <div className="col-span-full flex flex-wrap items-center gap-3 pt-1 text-[11.5px]">
+                        {l.producto.track_expiry && (
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "font-medium",
+                                r.faltaVence ? "text-danger" : "text-muted"
+                              )}
+                            >
+                              Vence
+                            </span>
+                            <input
+                              type="date"
+                              value={l.vence}
+                              onChange={(e) => setLinea(i, { vence: e.target.value })}
+                              className={cn(
+                                "h-8 rounded-md border bg-card px-2 text-[12px] outline-none",
+                                r.faltaVence ? "border-danger" : "border-line-strong"
+                              )}
+                            />
+                          </span>
+                        )}
+                        {r.difCosto !== null && (
+                          <span className="text-warn">
+                            El costo cargado es {formatMoney(l.producto.cost)} y la
+                            factura dice {formatMoney(n(l.costo))}
+                            {" ("}
+                            {r.difCosto > 0 ? "+" : ""}
+                            {r.difCosto.toFixed(1)}%). No se cambia solo.
+                          </span>
+                        )}
                         {!r.cierra && l.recibido !== "" && (
                           <span className="flex items-center gap-1.5 font-medium text-warn">
                             <TriangleAlert className="size-3.5" strokeWidth={2} />
@@ -397,10 +452,11 @@ export function PurchaseForm({
       </Card>
 
       <p className="text-[12.5px] leading-relaxed text-muted">
-        Al recibirla, la mercadería entra en cada local según el reparto y se
-        recalcula el <strong>costo promedio ponderado</strong> de cada producto
-        sobre el total recibido. El costo no se edita a mano en ningún otro lado:
-        sale de acá.
+        Al recibirla, la mercadería entra en cada local según el reparto.{" "}
+        <strong>El costo cargado en el producto no se toca</strong>: si el
+        proveedor facturó distinto te lo aviso acá arriba, pero cambiarlo lo
+        decidís vos, desde la ficha del producto. Lo que sí queda registrado es a
+        cuánto se compró esta vez.
       </p>
     </div>
   );
