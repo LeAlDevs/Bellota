@@ -10,13 +10,29 @@ import { cn } from "@/lib/utils";
 type Row = {
   id: string;
   name: string;
-  plu: number | null;
+  product_presentations: { plu: number | null; is_default: boolean }[] | null;
   unit_type: "kg" | "unidad";
   cost: number;
   min_stock: number;
   categories: { name: string } | null;
   stock: { qty: number; store_id: string }[] | null;
 };
+
+/*
+ * A qué productos apunta un PLU. Desde 0012 el PLU está en las presentaciones:
+ * el mismo producto puede tener el del fraccionado y el de la horma, y buscar
+ * cualquiera de los dos tiene que traer el producto.
+ */
+async function plusAProductos(
+  sb: Awaited<ReturnType<typeof createClient>>,
+  plu: number
+): Promise<string[]> {
+  const { data } = await sb
+    .from("product_presentations")
+    .select("product_id")
+    .eq("plu", plu);
+  return [...new Set((data ?? []).map((x) => x.product_id as string))];
+}
 
 export default async function StockPage({
   searchParams,
@@ -40,7 +56,7 @@ export default async function StockPage({
   let query = sb
     .from("products")
     .select(
-      "id, name, plu, unit_type, cost, min_stock, categories(name), stock(qty, store_id)"
+      "id, name, unit_type, cost, min_stock, categories(name), stock(qty, store_id), product_presentations(plu, is_default)"
     )
     .eq("is_active", true)
     .order("name");
@@ -49,7 +65,7 @@ export default async function StockPage({
   if (q) {
     const asPlu = Number(q);
     query = Number.isInteger(asPlu)
-      ? query.or(`name.ilike.%${q}%,plu.eq.${asPlu}`)
+      ? query.or(`name.ilike.%${q}%,id.in.(${(await plusAProductos(sb, asPlu)).join(",") || "00000000-0000-0000-0000-000000000000"})`)
       : query.ilike("name", `%${q}%`);
   }
 
@@ -252,7 +268,9 @@ export default async function StockPage({
                     r.bajo && "bg-danger-bg/35"
                   )}
                 >
-                  <div className="tnum text-faint">{r.plu ?? "—"}</div>
+                  <div className="tnum text-faint">
+                    {(r.product_presentations ?? []).find((x) => x.is_default)?.plu ?? "—"}
+                  </div>
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate font-medium">{r.name}</span>
                     {r.bajo && <Badge tone="danger">Bajo mínimo</Badge>}

@@ -205,3 +205,111 @@ export async function alternarActivo(
   revalidatePath(`/productos/${id}`);
   return { ok: true };
 }
+
+// ── Presentaciones ────────────────────────────────────────────────
+//
+// Un producto se puede vender de varias formas: fraccionado y en horma entera,
+// con precios distintos y un PLU propio cada una. El stock, el costo y los
+// lotes siguen siendo del producto: lo único que cambia es el precio y el
+// número que la balanza imprime en la etiqueta.
+
+const presentacionSchema = z.object({
+  name: z.string().min(2, "Poné un nombre, por ejemplo «Horma entera».").max(60),
+  price: z
+    .number({ message: "El precio tiene que ser un número." })
+    .min(0, "El precio no puede ser negativo."),
+  plu: z
+    .number()
+    .int("El PLU es un número entero.")
+    .min(1, "El PLU tiene que ser mayor a cero.")
+    .max(pluMaximo(), `El PLU no puede pasar de ${pluMaximo()}: no entra en la etiqueta.`)
+    .optional(),
+  /* Desde cuánto tiene sentido. Una horma no son 200 g: si entra una etiqueta
+     por debajo, el mostrador avisa. */
+  min_qty: z.number().min(0, "El mínimo no puede ser negativo.").optional(),
+  reason: z.string().max(120).optional(),
+});
+
+export async function guardarPresentacion(
+  productId: string,
+  presentationId: string | null,
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const denied = await requireCan("productos", true);
+  if (denied) return denied;
+
+  const parsed = presentacionSchema.safeParse({
+    name: str(formData.get("name")),
+    price: num(formData.get("price")),
+    plu: num(formData.get("plu")),
+    min_qty: num(formData.get("min_qty")),
+    reason: str(formData.get("reason")),
+  });
+
+  if (!parsed.success) {
+    return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  }
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("upsert_presentation", {
+    p_id: presentationId,
+    p_product_id: productId,
+    p_name: parsed.data.name,
+    p_price: parsed.data.price,
+    p_plu: parsed.data.plu ?? null,
+    p_min_qty: parsed.data.min_qty ?? null,
+    p_sort_order: Number(formData.get("sort_order") ?? 0) || 0,
+    p_is_active: true,
+    p_reason: parsed.data.reason ?? null,
+  });
+
+  if (error) {
+    /* El único choque probable es el PLU repetido, y el mensaje de Postgres no
+       le dice nada a nadie parado atrás del mostrador. */
+    const msg = /product_presentations_plu_uidx/.test(error.message)
+      ? `El PLU ${parsed.data.plu} ya está usado en otra presentación o en otro producto.`
+      : error.message;
+    return { error: msg };
+  }
+
+  revalidarProducto(productId);
+  return { ok: true };
+}
+
+export async function marcarPresentacionPrincipal(
+  productId: string,
+  presentationId: string
+): Promise<ActionState> {
+  const denied = await requireCan("productos", true);
+  if (denied) return denied;
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("set_default_presentation", { p_id: presentationId });
+  if (error) return { error: error.message };
+
+  revalidarProducto(productId);
+  return { ok: true };
+}
+
+export async function borrarPresentacion(
+  productId: string,
+  presentationId: string
+): Promise<ActionState> {
+  const denied = await requireCan("productos", true);
+  if (denied) return denied;
+
+  const sb = await createClient();
+  const { error } = await sb.rpc("delete_presentation", { p_id: presentationId });
+  if (error) return { error: error.message };
+
+  revalidarProducto(productId);
+  return { ok: true };
+}
+
+function revalidarProducto(productId: string) {
+  revalidatePath(`/productos/${productId}`);
+  revalidatePath("/productos");
+  revalidatePath("/pos");
+  revalidatePath("/stock");
+}

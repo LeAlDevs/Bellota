@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 export type LineaVenta = {
   product_id: string;
+  /**
+   * Con qué precio se cobró: fraccionado, horma entera. Si no viene, la base
+   * asume la principal. Sin esto no hay forma de saber, dentro de un mes, si
+   * esos 3 kg salieron a precio de horma o si alguien erró el PLU.
+   */
+  presentation_id?: string;
   qty: number;
   unit_price: number;
   /**

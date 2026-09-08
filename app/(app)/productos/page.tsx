@@ -4,21 +4,23 @@ import { getPermissions } from "@/lib/auth";
 import { canEdit } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { formatKg, formatMoney, formatNumber } from "@/lib/format";
+import { ordenarPresentaciones, type FilaPresentacion } from "@/lib/productos";
 import { Badge, Button, Card, EmptyState, PageHeader } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 
 type Row = {
   id: string;
   name: string;
-  plu: number | null;
   unit_type: "kg" | "unidad";
   kind: "simple" | "elaborado" | "combo";
-  price: number;
   cost: number;
   min_stock: number;
   is_active: boolean;
   categories: { name: string } | null;
   stock: { qty: number }[] | null;
+  /* El PLU y el precio viven acá desde 0012: un producto puede venderse
+     fraccionado y en horma, con precios distintos. */
+  product_presentations: FilaPresentacion[] | null;
 };
 
 const COLS =
@@ -45,7 +47,7 @@ export default async function ProductosPage({
   let query = sb
     .from("products")
     .select(
-      "id, name, plu, unit_type, kind, price, cost, min_stock, is_active, categories(name), stock(qty)"
+      "id, name, unit_type, kind, cost, min_stock, is_active, categories(name), stock(qty), product_presentations(id, name, plu, price, min_qty, is_default, is_active, sort_order)"
     )
     .order("name");
 
@@ -55,10 +57,23 @@ export default async function ProductosPage({
 
   if (q) {
     // Buscar por nombre o por PLU. En el mostrador se tipea el número.
+    //
+    // El PLU está en otra tabla, así que primero se resuelve a qué productos
+    // apunta ese número: puede ser el del fraccionado o el de la horma, y en
+    // los dos casos el que se busca es el mismo producto.
     const asPlu = Number(q);
-    query = Number.isInteger(asPlu)
-      ? query.or(`name.ilike.%${q}%,plu.eq.${asPlu}`)
-      : query.ilike("name", `%${q}%`);
+    if (Number.isInteger(asPlu)) {
+      const { data: porPlu } = await sb
+        .from("product_presentations")
+        .select("product_id")
+        .eq("plu", asPlu);
+      const ids = [...new Set((porPlu ?? []).map((x) => x.product_id as string))];
+      query = ids.length
+        ? query.or(`name.ilike.%${q}%,id.in.(${ids.join(",")})`)
+        : query.ilike("name", `%${q}%`);
+    } else {
+      query = query.ilike("name", `%${q}%`);
+    }
   }
 
   const { data, error } = await query.returns<Row[]>();
@@ -172,10 +187,13 @@ export default async function ProductosPage({
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {rows.map((r) => {
+                const presentaciones = ordenarPresentaciones(r.product_presentations ?? []);
+                const principal =
+                  presentaciones.find((x) => x.is_default) ?? presentaciones[0];
+                const plu = principal?.plu ?? null;
+                const precio = principal?.price ?? 0;
                 const margen =
-                  Number(r.price) > 0
-                    ? ((Number(r.price) - Number(r.cost)) / Number(r.price)) * 100
-                    : null;
+                  precio > 0 ? ((precio - Number(r.cost)) / precio) * 100 : null;
                 const stock = totalStock(r);
                 const bajo = stock < Number(r.min_stock);
 
@@ -194,25 +212,30 @@ export default async function ProductosPage({
                     <div
                       className={cn(
                         "tnum",
-                        r.plu != null
+                        plu != null
                           ? "text-faint"
                           : r.unit_type === "kg"
                             ? "font-semibold text-warn"
                             : "text-faint"
                       )}
                       title={
-                        r.plu == null && r.unit_type === "kg"
+                        plu == null && r.unit_type === "kg"
                           ? "Se pesa pero no tiene PLU: el mostrador no puede leer su etiqueta"
                           : undefined
                       }
                     >
-                      {r.plu ?? (r.unit_type === "kg" ? "falta" : "—")}
+                      {plu ?? (r.unit_type === "kg" ? "falta" : "—")}
                     </div>
 
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate font-medium">{r.name}</span>
                       {r.kind === "elaborado" && <Badge tone="accent">Elaborado</Badge>}
                       {r.kind === "combo" && <Badge tone="accent">Combo</Badge>}
+                      {presentaciones.length > 1 && (
+                        <Badge tone="accent">
+                          {presentaciones.length} presentaciones
+                        </Badge>
+                      )}
                       {!r.is_active && <Badge>De baja</Badge>}
                     </div>
 
@@ -225,7 +248,7 @@ export default async function ProductosPage({
                     </div>
 
                     <div className="tnum text-right font-medium">
-                      {formatMoney(r.price)}
+                      {formatMoney(precio)}
                     </div>
 
                     <div className="tnum text-right text-muted">

@@ -14,8 +14,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge, Button, Card, Input } from "@/components/ui/form";
-import { ProductPicker, type PickerProduct } from "@/components/ui/product-picker";
-import { formatKg, formatMoney, formatNumber } from "@/lib/format";
+import {
+  ProductPicker,
+  type PickerProduct,
+  type Presentacion,
+} from "@/components/ui/product-picker";
+import { formatKg, formatMoney, formatNumber, formatQty } from "@/lib/format";
 import { leerEtiqueta, pesoDesdeImporte } from "@/lib/balanza";
 import { cn } from "@/lib/utils";
 import { cobrar, type LineaVenta, type PagoVenta } from "./actions";
@@ -30,6 +34,8 @@ export type MedioPago = {
 type Linea = {
   key: string;
   producto: PickerProduct;
+  /** Con qué precio se está cobrando: fraccionado, horma entera, etc. */
+  presentacion: Presentacion;
   qty: number;
   precio: number;
   source: LineaVenta["source"];
@@ -79,10 +85,33 @@ export function PosTerminal({
   const scanRef = useRef<HTMLInputElement>(null);
   const pesoRef = useRef<HTMLInputElement>(null);
 
-  const porPlu = useMemo(
-    () => new Map(products.filter((p) => p.plu != null).map((p) => [p.plu as number, p])),
-    [products]
-  );
+  /*
+   * El PLU ya no identifica un producto: identifica una FORMA de venderlo. El
+   * mismo queso tiene un PLU para el fraccionado y otro para la horma, con
+   * precios distintos. Sin esto, una etiqueta de horma se dividiría por el
+   * precio del fraccionado y el peso saldría mal.
+   */
+  const porPlu = useMemo(() => {
+    const m = new Map<number, { producto: PickerProduct; presentacion: Presentacion }>();
+    for (const producto of products) {
+      for (const presentacion of producto.presentations) {
+        if (presentacion.plu != null) m.set(presentacion.plu, { producto, presentacion });
+      }
+    }
+    return m;
+  }, [products]);
+
+  /** La forma de venderlo que se usa cuando no hay etiqueta que lo diga. */
+  const principalDe = (p: PickerProduct): Presentacion =>
+    p.presentations.find((x) => x.is_default) ??
+    p.presentations[0] ?? {
+      id: "",
+      name: "",
+      plu: p.plu,
+      price: p.price,
+      min_qty: null,
+      is_default: true,
+    };
   const porBarcode = useMemo(
     () => new Map(products.filter((p) => p.barcode).map((p) => [p.barcode as string, p])),
     [products]
@@ -115,15 +144,34 @@ export function PosTerminal({
     producto: PickerProduct,
     qty: number,
     source: Linea["source"],
-    extra?: { scaleCode?: string; importeEtiqueta?: number; precio?: number }
+    extra?: {
+      scaleCode?: string;
+      importeEtiqueta?: number;
+      precio?: number;
+      presentacion?: Presentacion;
+    }
   ) {
+    const presentacion = extra?.presentacion ?? principalDe(producto);
+
+    /* Una horma no son 200 g. Si la etiqueta trae el PLU de horma por una
+       cantidad chica, casi seguro se eligió mal el PLU en la balanza y se está
+       cobrando de menos. Se avisa y se sigue: frenar la cola es peor, y el
+       cajero puede sacar la línea. */
+    if (presentacion.min_qty != null && qty < presentacion.min_qty - 0.0005) {
+      toast.warning(
+        `${producto.name}: "${presentacion.name}" es desde ${formatQty(presentacion.min_qty, producto.unit_type)} y esto son ${formatQty(qty, producto.unit_type)}. Fijate si en la balanza se eligió el PLU correcto.`,
+        { duration: 9000 }
+      );
+    }
+
     setLineas((ls) => [
       ...ls,
       {
         key: `${producto.id}-${Date.now()}-${ls.length}`,
         producto,
+        presentacion,
         qty,
-        precio: extra?.precio ?? producto.price,
+        precio: extra?.precio ?? presentacion.price,
         source,
         scaleCode: extra?.scaleCode,
         importeEtiqueta: extra?.importeEtiqueta,
@@ -170,24 +218,29 @@ export function PosTerminal({
 
     // ── Línea del ticket de balanza ─────────────────────────
     if (et.tipo === "linea") {
-      const producto = porPlu.get(et.plu);
-      if (!producto) {
+      const match = porPlu.get(et.plu);
+      if (!match) {
         toast.error(
           `El PLU ${et.plu} no está cargado en Bellota. Buscá el producto y cargalo a mano.`,
           { duration: 8000 }
         );
         return;
       }
+      const { producto, presentacion } = match;
+
+      /* El precio que se usa para despejar la cantidad es el de ESTA
+         presentación, que es el que tiene cargado la balanza para este PLU. */
       if (producto.unit_type === "unidad") {
         // La balanza lo vendió por unidad: la cantidad sale del importe.
-        const unidades = Math.round(et.importe / producto.price);
+        const unidades = Math.round(et.importe / presentacion.price);
         agregar(producto, Math.max(unidades, 1), "etiqueta", {
           scaleCode: et.codigo,
           importeEtiqueta: et.importe,
+          presentacion,
         });
         return;
       }
-      const r = pesoDesdeImporte(et.importe, producto.price);
+      const r = pesoDesdeImporte(et.importe, presentacion.price);
       if ("error" in r) {
         toast.error(`${producto.name}: ${r.error}`, { duration: 8000 });
         return;
@@ -195,6 +248,7 @@ export function PosTerminal({
       agregar(producto, r.kg, "etiqueta", {
         scaleCode: et.codigo,
         importeEtiqueta: et.importe,
+        presentacion,
       });
       return;
     }
@@ -284,6 +338,7 @@ export function PosTerminal({
     startEnviar(async () => {
       const items: LineaVenta[] = lineas.map((l) => ({
         product_id: l.producto.id,
+        presentation_id: l.presentacion.id || undefined,
         qty: l.qty,
         unit_price: l.precio,
         subtotal: l.importeEtiqueta,
@@ -460,6 +515,50 @@ export function PosTerminal({
                       {l.source === "codigo" && <Badge tone="neutral">Código</Badge>}
                       {l.source === "manual" && <Badge tone="neutral">Peso a mano</Badge>}
                       {l.source === "busqueda" && <Badge tone="neutral">Buscado</Badge>}
+
+                      {/* Si el producto se vende de una sola forma no hay nada
+                          que elegir y el selector sería ruido. Si se vende de
+                          varias, el cajero tiene que poder corregir sin sacar
+                          la línea y volver a escanear. */}
+                      {l.producto.presentations.length > 1 && (
+                        <select
+                          value={l.presentacion.id}
+                          onChange={(e) => {
+                            const nueva = l.producto.presentations.find(
+                              (x) => x.id === e.target.value
+                            );
+                            if (!nueva) return;
+                            setLineas((ls) =>
+                              ls.map((x) =>
+                                x.key === l.key
+                                  ? {
+                                      ...x,
+                                      presentacion: nueva,
+                                      precio: nueva.price,
+                                      /* Cambiar la forma de venta cambia el
+                                         precio: el importe del papel deja de
+                                         valer y hay que recalcular. */
+                                      importeEtiqueta: undefined,
+                                    }
+                                  : x
+                              )
+                            );
+                            if (l.importeEtiqueta) {
+                              setBalanzaSinVerificar((v) =>
+                                Math.max(0, v - l.importeEtiqueta!)
+                              );
+                            }
+                          }}
+                          className="h-6 rounded border border-line-strong bg-card px-1 pr-5 text-[11.5px] outline-none"
+                        >
+                          {l.producto.presentations.map((pr) => (
+                            <option key={pr.id} value={pr.id}>
+                              {pr.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
                       <span>
                         {fmtQty(l)} × {formatMoney(l.precio)}
                       </span>

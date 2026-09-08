@@ -62,6 +62,22 @@ if (fallas > 0) {
 // ── Prueba de humo: el circuito real de la fase 1 ─────────────────────
 console.log("\nPrueba de humo:");
 
+/*
+ * "Hoy" en hora de Buenos Aires, NO en UTC.
+ *
+ * Los reportes agrupan por `created_at at time zone Buenos Aires`. Usar
+ * `toISOString().slice(0,10)` acá hacía que después de las 21:00 los tests
+ * pidieran un día que en el local todavía no empezó, y todos los reportes
+ * dieran vacío. La misma trampa que documenta lib/format.ts.
+ */
+const hoyBA = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
 async function paso(label, fn) {
   try {
     const r = await fn();
@@ -116,20 +132,46 @@ await paso("can_edit_module('productos') = true", async () => {
 });
 
 let prod1;
+
+/*
+ * Desde 0012 el PLU y el precio NO están en `products`: viven en la
+ * presentación principal. Estos dos helpers son el puente, para que los pasos
+ * de abajo sigan leyéndose como lo que prueban.
+ */
+const presentacionDe = async (productId) => {
+  const r = await db.query(
+    "select * from public.product_presentations where product_id = $1 and is_default",
+    [productId]
+  );
+  return r.rows[0] ?? {};
+};
+const productoConPlu = async (plu) => {
+  const r = await db.query(
+    `select p.* from public.products p
+       join public.product_presentations pp on pp.product_id = p.id
+      where pp.plu = $1`,
+    [plu]
+  );
+  return r.rows[0];
+};
+
 await paso("create_product guarda el PLU que viene de la balanza", async () => {
   const r = await db.query(
     "select * from public.create_product('Jamón crudo estacionado', 'kg', 42900, null, 'simple', 28314, 5, false, null, null, null, null, 412)"
   );
   prod1 = r.rows[0];
-  if (prod1.plu !== 412) throw new Error("esperaba el 412, guardó " + prod1.plu);
-  return `PLU ${prod1.plu}`;
+  const pres = await presentacionDe(prod1.id);
+  if (pres.plu !== 412) throw new Error("esperaba el 412, guardó " + pres.plu);
+  if (Number(pres.price) !== 42900) throw new Error("el precio quedó en " + pres.price);
+  return `PLU ${pres.plu} en la presentación "${pres.name}"`;
 });
 
 await paso("un envasado puede quedar SIN PLU", async () => {
   const r = await db.query(
     "select * from public.create_product('Aceitunas verdes 350 g', 'unidad', 6400, null, 'simple', 4100, 6, false, null, '7791234567890', null, null, null)"
   );
-  if (r.rows[0].plu !== null) throw new Error("le puso PLU " + r.rows[0].plu);
+  const pres = await presentacionDe(r.rows[0].id);
+  if (pres.plu !== null) throw new Error("le puso PLU " + pres.plu);
   return "plu null, se vende por su EAN";
 });
 
@@ -148,7 +190,9 @@ await paso("pero varios sin PLU conviven sin chocar", async () => {
   await db.query(
     "select * from public.create_product('Gaseosa 500 ml', 'unidad', 2200, null, 'simple', 1400, 12, false, null, '7790001112223', null, null, null)"
   );
-  const r = await db.query("select count(*)::int as n from public.products where plu is null");
+  const r = await db.query(
+    "select count(*)::int as n from public.product_presentations where plu is null"
+  );
   if (r.rows[0].n !== 2) throw new Error("esperaba 2 sin PLU, hay " + r.rows[0].n);
   return "2 productos sin PLU";
 });
@@ -238,7 +282,9 @@ await paso("suggest_plu() propone un numero libre y NO lo consume", async () => 
   const a = await db.query("select public.suggest_plu() as p");
   const b = await db.query("select public.suggest_plu() as p");
   if (a.rows[0].p !== b.rows[0].p) throw new Error("consumió el número entre llamadas");
-  const max = await db.query("select max(plu)::int as m from public.products");
+  const max = await db.query(
+    "select max(plu)::int as m from public.product_presentations"
+  );
   if (a.rows[0].p <= max.rows[0].m) throw new Error("propuso uno ya usado");
   return `propone ${a.rows[0].p}, el máximo usado es ${max.rows[0].m}`;
 });
@@ -251,7 +297,12 @@ await paso("un PLU dado de baja NO se vuelve a sugerir", async () => {
     "select * from public.create_product('Descartable', 'unidad', 1, null, 'simple', 0, 0, false, null, null, null, null, $1)",
     [alto]
   );
-  await db.query("delete from public.products where plu = $1", [alto]);
+  await db.query(
+    `delete from public.products p
+      where exists (select 1 from public.product_presentations pp
+                     where pp.product_id = p.id and pp.plu = $1)`,
+    [alto]
+  );
   const r = await db.query("select public.suggest_plu() as p");
   if (r.rows[0].p <= alto) throw new Error(`propuso el ${r.rows[0].p}, reciclando`);
   return `borré el ${alto}, ahora propone ${r.rows[0].p}`;
@@ -259,8 +310,9 @@ await paso("un PLU dado de baja NO se vuelve a sugerir", async () => {
 
 await paso("set_product_active no toca el PLU", async () => {
   await db.query("select public.set_product_active($1, false)", [prod1.id]);
-  const r = await db.query("select plu, is_active from public.products where id = $1", [prod1.id]);
-  if (r.rows[0].plu !== 412) throw new Error("el PLU quedó en " + r.rows[0].plu);
+  const r = await db.query("select is_active from public.products where id = $1", [prod1.id]);
+  const pres = await presentacionDe(prod1.id);
+  if (pres.plu !== 412) throw new Error("el PLU quedó en " + pres.plu);
   if (r.rows[0].is_active !== false) throw new Error("no lo desactivó");
   await db.query("select public.set_product_active($1, true)", [prod1.id]);
   return "de baja y de alta, PLU intacto";
@@ -344,7 +396,9 @@ await paso("la planilla dice CUÁNTO HAY, no cuánto sumar", async () => {
 
 await paso("sin PLU en la planilla, queda SIN PLU (no se inventa)", async () => {
   const r = await db.query(
-    "select plu from public.products where name = 'Mortadela con pistacho'"
+    `select pp.plu from public.product_presentations pp
+       join public.products p on p.id = pp.product_id
+      where p.name = 'Mortadela con pistacho'`
   );
   if (r.rows[0].plu !== null) throw new Error("inventó el PLU " + r.rows[0].plu);
   return "plu null, como debe ser";
@@ -353,7 +407,11 @@ await paso("sin PLU en la planilla, queda SIN PLU (no se inventa)", async () => 
 await paso("la planilla CON PLU lo guarda tal cual", async () => {
   const fila = [{ nombre: "Salame Milán", tipo: "kg", precio: 19800, plu: "1108", categoria: "Fiambres" }];
   await db.query("select public.import_products($1::jsonb)", [JSON.stringify(fila)]);
-  const r = await db.query("select plu from public.products where name = 'Salame Milán'");
+  const r = await db.query(
+    `select pp.plu from public.product_presentations pp
+       join public.products p on p.id = pp.product_id
+      where p.name = 'Salame Milán'`
+  );
   if (r.rows[0].plu !== 1108) throw new Error("guardó " + r.rows[0].plu);
   return "PLU 1108, el de la balanza";
 });
@@ -362,7 +420,11 @@ await paso("reimportar matchea por PLU aunque cambie el nombre", async () => {
   const fila = [{ nombre: "Salame Milán estacionado", tipo: "kg", precio: 21000, plu: "1108" }];
   const r = await db.query("select public.import_products($1::jsonb) as res", [JSON.stringify(fila)]);
   if (r.rows[0].res.creados !== 0) throw new Error("creó uno nuevo en vez de actualizar");
-  const p = await db.query("select name from public.products where plu = 1108");
+  const p = await db.query(
+    `select p.name from public.products p
+       join public.product_presentations pp on pp.product_id = p.id
+      where pp.plu = 1108`
+  );
   return `actualizó el existente -> "${p.rows[0].name}"`;
 });
 
@@ -1070,7 +1132,7 @@ await paso("la linea de etiqueta cobra el importe del ticket, no el recalculado"
 });
 
 await paso("sin importe de etiqueta, la linea se sigue calculando sola", async () => {
-  const p = await db.query("select id from public.products where plu = 65");
+  const p = { rows: [await productoConPlu(65)] };
   const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
   const items = JSON.stringify([
     { product_id: p.rows[0].id, qty: 0.25, unit_price: 26400, source: "manual" },
@@ -1094,15 +1156,14 @@ await paso("preparo una venta para devolver", async () => {
   );
   turnoMos = t.rows[0].id;
 
-  const p = await db.query("select id from public.products where plu = 66");
-  itemDev = p.rows[0].id;
+  itemDev = (await productoConPlu(66)).id;
   const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
 
   await db.query("select public.adjust_stock($1, $2, 10, 'alta_inicial')", [mosconi, itemDev]);
 
   // El producto ya tiene ventas de casos anteriores: el reporte se compara
   // contra este estado, no contra cero.
-  const hoyRep = new Date().toISOString().slice(0, 10);
+  const hoyRep = hoyBA();
   const antes = await db.query(
     "select * from public.report_sales_by_product($1::date, $1::date, $2, false) where product_id = $3",
     [hoyRep, mosconi, itemDev]
@@ -1204,7 +1265,7 @@ await paso("no se devuelve contra una venta anulada", async () => {
 await paso("el reporte por producto netea las devoluciones", async () => {
   // Se vendieron 2 unidades por $60.000 y se devolvieron las 2: el reporte
   // tiene que quedar exactamente como estaba antes de esa venta.
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyBA();
   const r = await db.query(
     "select * from public.report_sales_by_product($1::date, $1::date, $2, false) where product_id = $3",
     [hoy, mosconi, itemDev]
@@ -1223,7 +1284,7 @@ await paso("el reporte por producto netea las devoluciones", async () => {
 });
 
 await paso("el reporte por producto calcula el margen", async () => {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyBA();
   const r = await db.query(
     "select * from public.report_sales_by_product($1::date, $1::date, null, false)",
     [hoy]
@@ -1239,7 +1300,7 @@ await paso("el reporte por producto calcula el margen", async () => {
 });
 
 await paso("el resumen del periodo cierra", async () => {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyBA();
   const r = await db.query(
     "select * from public.report_sales_summary($1::date, $1::date, null, false)",
     [hoy]
@@ -1255,7 +1316,7 @@ await paso("el resumen del periodo cierra", async () => {
 });
 
 await paso("el reporte por hora agrupa en hora de Buenos Aires", async () => {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyBA();
   const r = await db.query(
     "select * from public.report_sales_by_hour($1::date, $1::date, null)",
     [hoy]
@@ -1264,6 +1325,292 @@ await paso("el reporte por hora agrupa en hora de Buenos Aires", async () => {
   const total = r.rows.reduce((a, x) => a + Number(x.tickets), 0);
   if (total === 0) throw new Error("no contó tickets");
   return `${r.rows.length} franja(s), ${total} tickets`;
+});
+
+// ── Presentaciones: un producto, varias formas de venderlo ───────────
+let quesoId, presFrac, presHorma;
+
+await paso("un producto nace con su presentacion principal", async () => {
+  const r = await db.query(
+    "select * from public.create_product('Queso Sardo', 'kg', 26400, null, 'simple', 18000, 0, false, null, null, null, null, 3001)"
+  );
+  quesoId = r.rows[0].id;
+  const pres = await presentacionDe(quesoId);
+  presFrac = pres.id;
+  if (pres.name !== "Fraccionado") throw new Error("la llamó " + pres.name);
+  if (pres.is_default !== true) throw new Error("no quedó como principal");
+  return `"${pres.name}" · PLU ${pres.plu} · $${pres.price}`;
+});
+
+await paso("la horma es otra presentacion del MISMO producto", async () => {
+  const r = await db.query(
+    "select * from public.upsert_presentation(null, $1, 'Horma entera', 22000, 3002, 2.5, 1, true, 'alta')",
+    [quesoId]
+  );
+  presHorma = r.rows[0].id;
+  if (r.rows[0].product_id !== quesoId) throw new Error("colgó de otro producto");
+  if (r.rows[0].is_default !== false) throw new Error("se robó el default");
+  const n = await db.query(
+    "select count(*)::int as n from public.product_presentations where product_id = $1",
+    [quesoId]
+  );
+  if (n.rows[0].n !== 2) throw new Error("hay " + n.rows[0].n + " presentaciones");
+  return "2 presentaciones, 1 producto, 1 stock";
+});
+
+await paso("dos presentaciones no pueden compartir el PLU", async () => {
+  try {
+    await db.query(
+      "select public.upsert_presentation(null, $1, 'Media horma', 24000, 3002, null, 2, true, null)",
+      [quesoId]
+    );
+  } catch {
+    return "el 3002 ya estaba tomado: rechazado";
+  }
+  throw new Error("dejó repetir el PLU entre presentaciones");
+});
+
+await paso("tampoco puede pisar el PLU de otro producto", async () => {
+  try {
+    await db.query(
+      "select public.upsert_presentation(null, $1, 'Trucha', 24000, 412, null, 3, true, null)",
+      [quesoId]
+    );
+  } catch {
+    return "el 412 es de otro producto: rechazado";
+  }
+  throw new Error("dejó pisar el PLU de otro producto");
+});
+
+await paso("un producto no puede tener dos principales", async () => {
+  try {
+    await db.query(
+      "update public.product_presentations set is_default = true where id = $1",
+      [presHorma]
+    );
+  } catch {
+    return "el índice único lo frena";
+  }
+  throw new Error("quedaron dos principales y el POS no sabría cuál usar");
+});
+
+await paso("set_default_presentation mueve la marca sin dejar dos", async () => {
+  await db.query("select public.set_default_presentation($1)", [presHorma]);
+  const r = await db.query(
+    "select id, is_default from public.product_presentations where product_id = $1 order by sort_order",
+    [quesoId]
+  );
+  const defaults = r.rows.filter((x) => x.is_default);
+  if (defaults.length !== 1) throw new Error("quedaron " + defaults.length + " principales");
+  if (defaults[0].id !== presHorma) throw new Error("no la movió");
+  await db.query("select public.set_default_presentation($1)", [presFrac]);
+  return "una sola principal, siempre";
+});
+
+await paso("las dos presentaciones descuentan del MISMO stock", async () => {
+  await db.query("select public.adjust_stock($1, $2, 10, 'alta_inicial')", [mosconi, quesoId]);
+  const antes = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [mosconi, quesoId]
+  );
+
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const items = JSON.stringify([
+    { product_id: quesoId, presentation_id: presFrac, qty: 0.5, unit_price: 26400, source: "etiqueta" },
+    { product_id: quesoId, presentation_id: presHorma, qty: 3, unit_price: 22000, source: "etiqueta" },
+  ]);
+  const total = 0.5 * 26400 + 3 * 22000;
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: total }]);
+  await db.query("select * from public.create_sale($1, $2::jsonb, $3::jsonb)", [
+    mosconi,
+    items,
+    pagos,
+  ]);
+
+  const despues = await db.query(
+    "select qty from public.stock where store_id = $1 and product_id = $2",
+    [mosconi, quesoId]
+  );
+  const bajo = Number(antes.rows[0].qty) - Number(despues.rows[0].qty);
+  if (Math.abs(bajo - 3.5) > 0.0005) throw new Error("bajó " + bajo + " en vez de 3,5");
+  return `0,5 fraccionado + 3 en horma = ${bajo} kg de un solo stock`;
+});
+
+await paso("la venta guarda con que presentacion se cobro", async () => {
+  const r = await db.query(
+    `select si.presentation_id, si.qty, si.unit_price
+       from public.sale_items si
+      where si.product_id = $1
+      order by si.qty`,
+    [quesoId]
+  );
+  if (r.rows.length !== 2) throw new Error("hay " + r.rows.length + " líneas");
+  const frac = r.rows.find((x) => x.presentation_id === presFrac);
+  const horma = r.rows.find((x) => x.presentation_id === presHorma);
+  if (!frac || !horma) throw new Error("alguna línea quedó sin presentación");
+  if (Number(horma.unit_price) !== 22000) throw new Error("la horma se cobró a " + horma.unit_price);
+  return "cada línea sabe a qué precio salió";
+});
+
+await paso("una presentacion de OTRO producto se rechaza", async () => {
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const items = JSON.stringify([
+    { product_id: itemDev, presentation_id: presHorma, qty: 1, unit_price: 100 },
+  ]);
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: 100 }]);
+  try {
+    await db.query("select * from public.create_sale($1, $2::jsonb, $3::jsonb)", [
+      mosconi,
+      items,
+      pagos,
+    ]);
+  } catch (e) {
+    if (!/presentación no es de ese producto/i.test(e.message)) {
+      throw new Error("falló por otra cosa: " + e.message);
+    }
+    return "rechazado antes de tocar el stock";
+  }
+  throw new Error("cobró con la presentación de otro producto");
+});
+
+await paso("sin presentation_id se asume la principal", async () => {
+  const efe = await db.query("select id from public.payment_methods where name = 'Efectivo'");
+  const items = JSON.stringify([{ product_id: quesoId, qty: 0.2, unit_price: 26400 }]);
+  const pagos = JSON.stringify([{ payment_method_id: efe.rows[0].id, amount: 5280 }]);
+  const v = await db.query("select * from public.create_sale($1, $2::jsonb, $3::jsonb)", [
+    mosconi,
+    items,
+    pagos,
+  ]);
+  const r = await db.query(
+    "select presentation_id from public.sale_items where sale_id = $1",
+    [v.rows[0].id]
+  );
+  if (r.rows[0].presentation_id !== presFrac) throw new Error("no cayó en la principal");
+  return "queda auditable igual";
+});
+
+await paso("el reporte por presentacion separa horma de fraccionado", async () => {
+  const hoy = hoyBA();
+  const r = await db.query(
+    "select * from public.report_sales_by_presentation($1::date, $1::date, $2, false) where product_id = $3",
+    [hoy, mosconi, quesoId]
+  );
+  if (r.rows.length !== 2) throw new Error("devolvió " + r.rows.length + " filas");
+  const horma = r.rows.find((x) => x.presentation_id === presHorma);
+  if (Math.abs(Number(horma.qty) - 3) > 0.0005) throw new Error("la horma dio " + horma.qty);
+  if (Math.abs(Number(horma.revenue) - 66000) > 0.01) throw new Error("facturó " + horma.revenue);
+  // Mismo producto, mismo costo: la horma deja menos margen por kilo.
+  if (Math.abs(Number(horma.cost) - 54000) > 0.01) throw new Error("costo " + horma.cost);
+  return `horma ${horma.qty} kg · $${horma.revenue} · margen $${horma.margin}`;
+});
+
+await paso("el reporte por producto sigue viendo UN solo sardo", async () => {
+  const hoy = hoyBA();
+  const r = await db.query(
+    "select * from public.report_sales_by_product($1::date, $1::date, $2, false) where product_id = $3",
+    [hoy, mosconi, quesoId]
+  );
+  if (r.rows.length !== 1) throw new Error("partió el producto en " + r.rows.length);
+  if (Math.abs(Number(r.rows[0].qty) - 3.7) > 0.0005) {
+    throw new Error("sumó " + r.rows[0].qty);
+  }
+  return `una línea, ${r.rows[0].qty} kg, $${r.rows[0].revenue}`;
+});
+
+await paso("no se borra una presentacion ya vendida", async () => {
+  try {
+    await db.query("select public.delete_presentation($1)", [presHorma]);
+  } catch (e) {
+    if (!/ya se vendió/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "se desactiva, no se borra: el historial tiene que seguir cerrando";
+  }
+  throw new Error("borró una presentación con ventas");
+});
+
+await paso("no se borra la presentacion principal", async () => {
+  try {
+    await db.query("select public.delete_presentation($1)", [presFrac]);
+  } catch (e) {
+    if (!/principal/i.test(e.message)) throw new Error("falló por otra cosa: " + e.message);
+    return "el producto no puede quedar sin precio";
+  }
+  throw new Error("borró la principal");
+});
+
+await paso("una presentacion sin ventas si se borra", async () => {
+  const r = await db.query(
+    "select * from public.upsert_presentation(null, $1, 'Media horma', 24000, 3003, 1.2, 2, true, null)",
+    [quesoId]
+  );
+  await db.query("select public.delete_presentation($1)", [r.rows[0].id]);
+  const n = await db.query(
+    "select count(*)::int as n from public.product_presentations where product_id = $1",
+    [quesoId]
+  );
+  if (n.rows[0].n !== 2) throw new Error("quedaron " + n.rows[0].n);
+  return "vuelve a haber 2";
+});
+
+await paso("cambiar el precio de una presentacion deja rastro", async () => {
+  await db.query(
+    "select public.upsert_presentation($1, $2, 'Horma entera', 23500, 3002, 2.5, 1, true, 'aumento de costo')",
+    [presHorma, quesoId]
+  );
+  const r = await db.query(
+    `select old_price, new_price, reason from public.price_history
+      where presentation_id = $1 order by created_at desc limit 1`,
+    [presHorma]
+  );
+  const h = r.rows[0];
+  if (Number(h.old_price) !== 22000 || Number(h.new_price) !== 23500) {
+    throw new Error(`quedó ${h.old_price} -> ${h.new_price}`);
+  }
+  return `${h.old_price} -> ${h.new_price} (${h.reason})`;
+});
+
+await paso("update_product sigue moviendo el precio de la principal", async () => {
+  await db.query(
+    "select * from public.update_product($1, 'Queso Sardo', 'kg', 27900, null, 'simple', 0, false, null, null, null, null, true, 'lista nueva', 3001, null)",
+    [quesoId]
+  );
+  const pres = await presentacionDe(quesoId);
+  if (Number(pres.price) !== 27900) throw new Error("quedó en " + pres.price);
+  if (pres.plu !== 3001) throw new Error("le movió el PLU a " + pres.plu);
+  const horma = await db.query(
+    "select price from public.product_presentations where id = $1",
+    [presHorma]
+  );
+  if (Number(horma.rows[0].price) !== 23500) {
+    throw new Error("también pisó la horma: " + horma.rows[0].price);
+  }
+  return "tocó la principal y dejó la horma en paz";
+});
+
+await paso("la importacion no pisa las presentaciones alternativas", async () => {
+  const fila = [{ nombre: "Queso Sardo", tipo: "kg", precio: 29900, plu: "3001" }];
+  await db.query("select public.import_products($1::jsonb)", [JSON.stringify(fila)]);
+  const pres = await presentacionDe(quesoId);
+  const horma = await db.query(
+    "select price from public.product_presentations where id = $1",
+    [presHorma]
+  );
+  if (Number(pres.price) !== 29900) throw new Error("la principal quedó en " + pres.price);
+  if (Number(horma.rows[0].price) !== 23500) {
+    throw new Error("la planilla pisó la horma: " + horma.rows[0].price);
+  }
+  return "la planilla de balanza solo trae el fraccionado";
+});
+
+await paso("importar por PLU de una alternativa encuentra el producto", async () => {
+  const antes = await db.query("select count(*)::int as n from public.products");
+  const fila = [{ nombre: "Queso Sardo horma", tipo: "kg", precio: 23500, plu: "3002" }];
+  await db.query("select public.import_products($1::jsonb)", [JSON.stringify(fila)]);
+  const despues = await db.query("select count(*)::int as n from public.products");
+  if (despues.rows[0].n !== antes.rows[0].n) {
+    throw new Error("creó un producto duplicado en vez de reconocer el PLU");
+  }
+  return "reconoció el 3002 y no duplicó el sardo";
 });
 
 console.log(fallas === 0 ? "\nTodo verde." : `\n${fallas} falla(s).`);

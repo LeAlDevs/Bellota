@@ -121,15 +121,47 @@ acá con `has_pos = false`.
 `products`
 - `name`, `description`, `category_id`
 - **`unit_type`**: `kg` | `unidad` — la decisión que atraviesa todo el sistema
-- **`plu`** (int, **nullable**, único entre los que no son nulos) — el código corto que ya
-  tiene cargado la balanza. Lo trae el negocio, no lo inventa Bellota. Queda vacío en los
-  productos que nunca pasan por balanza (envasados de fábrica con su propio EAN).
 - `barcode` (EAN del fabricante, para envasados), `sku` (interno)
 - **`kind`**: `simple` (se compra y se vende) | `elaborado` (se produce) | `combo` (promo)
-- `price` — precio final de venta, por kg o por unidad
-- `cost` — costo promedio ponderado, **calculado, no editable a mano**
+- `cost` — costo manual (ver §4.5: se avisa la diferencia contra la factura, no se pisa)
 - `track_expiry`, `shelf_life_days`
 - `min_stock` (alerta de reposición), `is_active`
+
+`product_presentations` — **formas de venderlo** (migración 0012)
+
+El mismo queso vale distinto según cómo se lo lleven: fraccionado tiene un precio y la
+horma entera otro, más barato por kilo. **No es un descuento por cantidad**: 3 kg feteados
+no tienen el precio de horma, porque ahí sí hay merma de puntas y trabajo de fetear. Es
+otra forma de vender la misma mercadería.
+
+- `product_id`, `name` ("Fraccionado", "Horma entera", "Media horma")
+- **`plu`** (int, **nullable**, único en toda la organización) — el código corto que ya tiene
+  cargado la balanza **para este precio**. Lo trae el negocio, no lo inventa Bellota. Queda
+  vacío en lo que nunca pasa por balanza (envasados de fábrica con su propio EAN).
+- `price` — precio final de venta, por kg o por unidad
+- `min_qty` — desde cuánto tiene sentido. Una horma no son 200 g: por debajo, el mostrador
+  avisa (no bloquea: frenar la cola es peor, y la línea se puede sacar).
+- `is_default` — la que se usa al buscar por nombre o escanear un EAN de fábrica. Un índice
+  único garantiza **exactamente una** por producto.
+- `sort_order`, `is_active`
+
+> **Por qué el PLU y el precio se mudaron acá y no se duplicó el producto.** "Sardo" y
+> "Sardo horma" como dos productos es lo más rápido y es una trampa: dos stocks del mismo
+> queso que habría que transferir a mano cada vez que se abre una horma, dos costos que hay
+> que acordarse de cambiar juntos, y un margen partido en dos líneas donde ninguna contesta
+> "¿cuánto me deja el sardo?". Con presentaciones hay **un producto, un stock, un costo,
+> los mismos lotes**, y lo único que cambia es el precio y el número que imprime la etiqueta.
+>
+> **Por qué se mudó entero y no quedó también en `products`.** Si el PLU viviera en dos
+> tablas haría falta un trigger en cada una para garantizar que no se repita, y un PLU
+> repetido es exactamente el bug que hace que una etiqueta escanee el producto equivocado.
+> En una sola tabla lo resuelve un índice único y no hay nada que recordar.
+>
+> **Consecuencia para la fase 9:** el archivo que hay que exportarle a Qendra es la lista de
+> presentaciones, no la de productos. Un PLU con su precio es justo lo que la balanza espera.
+
+`sale_items.presentation_id` guarda con cuál se cobró: sin eso, dentro de un mes no hay forma
+de saber si esos 3 kg salieron a precio de horma o si alguien erró el PLU en la balanza.
 - `tax_rate` — **nullable, dormida.** Sin UI. Seguro barato por si pasan a Responsable Inscripto.
 
 `categories` — catálogo editable.
@@ -388,9 +420,12 @@ Verificado contra dos tickets reales el 07/09/2026 (parser en `lib/balanza.ts`,
 ```
 
 - **El PLU ocupa 4 dígitos → el máximo es 9999.** El alta de productos lo valida.
-- **El PLU `2000` está reservado**: es el que usa la balanza para el código del total de la
-  operación. Un producto con ese PLU haría que el total de un ticket se escanee como ese
-  producto.
+- **No hay ningún PLU reservado.** Acá decía que el `2000` lo estaba, porque yo suponía que
+  la balanza lo usaba para el código del total. El ticket real lo desmintió: el total se
+  distingue por el **prefijo** (`22` en vez de `20`), no por el PLU. Ver `lib/balanza.ts`.
+- **Un PLU identifica una presentación, no un producto.** El fraccionado y la horma del mismo
+  queso tienen PLU distintos, y el mostrador despeja los kilos con el precio de *esa*
+  presentación.
 - **La balanza embebe el IMPORTE, no el peso.** Los kilos se reconstruyen:
   `kg = importe ÷ precio`. Funciona exacto mientras el precio de la balanza sea el de Bellota
   — ver el agujero de la ventana de sincronización en §4.10.

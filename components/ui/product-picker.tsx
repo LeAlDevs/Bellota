@@ -4,10 +4,26 @@ import { useMemo, useRef, useState } from "react";
 import { Check, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Una forma de vender el producto: fraccionado, horma entera, media horma.
+ * Cada una tiene su PLU en la balanza y su propio $/kg; todas descuentan del
+ * mismo stock, con el mismo costo.
+ */
+export type Presentacion = {
+  id: string;
+  name: string;
+  /** El de la balanza para ESTE precio. */
+  plu: number | null;
+  price: number;
+  /** Desde cuánto tiene sentido. Una horma no son 200 g. */
+  min_qty: number | null;
+  is_default: boolean;
+};
+
 export type PickerProduct = {
   id: string;
   name: string;
-  /** El de la balanza. Null en lo que no se pesa. */
+  /** El de la presentación principal. Null en lo que no se pesa. */
   plu: number | null;
   /** El EAN de fábrica de los envasados. */
   barcode: string | null;
@@ -19,6 +35,8 @@ export type PickerProduct = {
   shelf_life_days: number | null;
   /** Costo promedio ponderado, para mostrar cuánta plata se pierde en una merma. */
   cost: number;
+  /** Todas las formas de venderlo. Siempre trae al menos la principal. */
+  presentations: Presentacion[];
   /** { store_id: cantidad } */
   stock: Record<string, number>;
 };

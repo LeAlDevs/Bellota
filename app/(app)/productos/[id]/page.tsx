@@ -6,13 +6,17 @@ import { canEdit } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateTime, formatKg, formatMoney, formatNumber } from "@/lib/format";
 import { Badge, Card, PageHeader } from "@/components/ui/form";
+import { ordenarPresentaciones, type FilaPresentacion } from "@/lib/productos";
 import { ProductForm, type ProductFormValues } from "../product-form";
 import { editarProducto } from "../actions";
+import { Presentaciones } from "./presentations";
 
-type Producto = ProductFormValues & {
+/* El PLU y el precio ya no están en `products`: viven en las presentaciones.
+   El formulario sigue editando los de la principal. */
+type Producto = Omit<ProductFormValues, "plu" | "price"> & {
   id: string;
-  plu: number;
   stock: { qty: number; store_id: string }[] | null;
+  product_presentations: FilaPresentacion[] | null;
 };
 
 export default async function ProductoPage({
@@ -33,7 +37,7 @@ export default async function ProductoPage({
       sb
         .from("products")
         .select(
-          "id, plu, name, description, category_id, unit_type, kind, price, cost, min_stock, track_expiry, shelf_life_days, barcode, sku, is_active, stock(qty, store_id)"
+          "id, name, description, category_id, unit_type, kind, cost, min_stock, track_expiry, shelf_life_days, barcode, sku, is_active, stock(qty, store_id), product_presentations(id, name, plu, price, min_qty, is_default, is_active, sort_order)"
         )
         .eq("id", id)
         .maybeSingle<Producto>(),
@@ -49,6 +53,10 @@ export default async function ProductoPage({
 
   if (!producto) notFound();
 
+  const presentaciones = ordenarPresentaciones(producto.product_presentations ?? []);
+  const principal = presentaciones.find((x) => x.is_default) ?? presentaciones[0];
+  const plu = principal?.plu ?? null;
+
   const stockPorLocal = new Map(
     (producto.stock ?? []).map((s) => [s.store_id, Number(s.qty)])
   );
@@ -62,8 +70,8 @@ export default async function ProductoPage({
       <PageHeader
         title={producto.name}
         subtitle={
-          producto.plu != null
-            ? `PLU ${producto.plu}`
+          plu != null
+            ? `PLU ${plu}${presentaciones.length > 1 ? ` · ${presentaciones.length} presentaciones` : ""}`
             : producto.barcode
               ? `Código de barras ${producto.barcode}`
               : "Sin PLU ni código de barras"
@@ -85,10 +93,10 @@ export default async function ProductoPage({
         <div className="flex items-center gap-3 rounded-xl border border-ok/25 bg-ok-bg px-4 py-3">
           <CheckCircle2 className="size-[18px] shrink-0 text-ok" strokeWidth={1.8} />
           <p className="text-[13px] leading-relaxed text-ok">
-            {producto.plu != null ? (
+            {plu != null ? (
               <>
                 Producto creado con el{" "}
-                <strong className="num">PLU {producto.plu}</strong>. Chequeá que
+                <strong className="num">PLU {plu}</strong>. Chequeá que
                 sea el mismo número en las cuatro balanzas: si en alguna está en
                 otro producto, esa etiqueta va a escanear mal en el mostrador.
               </>
@@ -128,7 +136,11 @@ export default async function ProductoPage({
           <ProductForm
             action={editarProducto.bind(null, id)}
             categories={categories ?? []}
-            product={producto}
+            product={{
+              ...producto,
+              plu: plu ?? undefined,
+              price: principal?.price ?? 0,
+            }}
           />
         ) : (
           <Card className="p-5">
@@ -138,6 +150,15 @@ export default async function ProductoPage({
             </p>
           </Card>
         )}
+
+        <div className="mt-3.5">
+          <Presentaciones
+            productId={producto.id}
+            unitType={producto.unit_type}
+            presentaciones={presentaciones}
+            puedeEditar={puedeEditar}
+          />
+        </div>
 
         {precios && precios.length > 0 && (
           <Card className="mt-3.5 flex flex-col overflow-hidden">
